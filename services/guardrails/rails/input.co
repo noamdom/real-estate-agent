@@ -1,0 +1,52 @@
+# ── Valid property listing intents ───────────────────────────────────────────
+# NeMo uses these examples to teach the LLM what a valid submission looks like.
+
+define user intent is valid property listing
+  "3 bedroom apartment in Tel Aviv, asking 2.5 million NIS, renovated kitchen"
+  "Villa in Jerusalem Rehavia, 290 sqm, private garden, 10M NIS"
+  "Studio in Haifa near the sea, 45 sqm, 1.2M NIS"
+  "Commercial office space in Herzliya Pituah, 500 sqm, for rent"
+  "דירת 4 חדרים בתל אביב, שטח 90 מ״ר, מחיר מבוקש 3.5 מיליון שקל"
+
+# ── Invalid / spam intents ────────────────────────────────────────────────────
+
+define user intent is spam or advertisement
+  "Buy cheap Rolex watches now, limited offer!"
+  "Make money fast with crypto investments"
+  "Click here for a free iPhone giveaway"
+  "Best SEO services for your website"
+  "Nigerian prince needs your help"
+
+define user intent is off topic
+  "What is the weather in Tel Aviv today?"
+  "How do I cook pasta?"
+  "Tell me a joke"
+  "What is the capital of France?"
+  "Who won the football game last night?"
+
+define user intent is offensive or harmful
+  "I hate all Arabs and refuse to sell to them"
+  "Only selling to Jewish buyers"
+  "This property has been used for illegal activities"
+
+# ── Flows ─────────────────────────────────────────────────────────────────────
+
+define flow validate property submission
+  user intent is spam or advertisement
+  bot block submission
+    reason: "Submission appears to be spam or an advertisement, not a property listing."
+
+define flow validate property submission
+  user intent is off topic
+  bot block submission
+    reason: "Submission is off-topic. Please submit a genuine property listing."
+
+define flow validate property submission
+  user intent is offensive or harmful
+  bot block submission
+    reason: "Submission contains discriminatory or harmful content."
+
+# ── Bot responses ─────────────────────────────────────────────────────────────
+
+define bot block submission
+  "BLOCKED: {{reason}}"

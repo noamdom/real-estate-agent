@@ -1,0 +1,42 @@
+# ── Output rail: check the AI-generated report ───────────────────────────────
+# These intents describe what a PROBLEMATIC report looks like.
+
+define bot intent makes false legal claims
+  "This property is legally guaranteed to appreciate"
+  "We certify this property meets all legal requirements"
+  "Guaranteed return on investment of 15%"
+  "This listing is certified by the Israeli Land Registry"
+  "Price is guaranteed not to change"
+
+define bot intent invents prices or data
+  "Based on our proprietary data, this property will sell for exactly"
+  "Our algorithm guarantees this valuation is accurate to within 1%"
+  "This property has sold for [invented price] in the past"
+
+define bot intent gives unauthorized legal advice
+  "You should sign the contract immediately"
+  "There is no legal risk in this purchase"
+  "This transaction is exempt from all taxes"
+  "We advise you to bypass the lawyer review"
+
+# ── Flows ─────────────────────────────────────────────────────────────────────
+
+define flow validate report content
+  bot intent makes false legal claims
+  bot flag report
+    reason: "Report contains false legal claims or guarantees."
+
+define flow validate report content
+  bot intent invents prices or data
+  bot flag report
+    reason: "Report contains fabricated or unverifiable price data."
+
+define flow validate report content
+  bot intent gives unauthorized legal advice
+  bot flag report
+    reason: "Report contains unauthorized legal advice."
+
+# ── Bot responses ─────────────────────────────────────────────────────────────
+
+define bot flag report
+  "FLAGGED: {{reason}}"
