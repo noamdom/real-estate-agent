@@ -26,9 +26,7 @@ uvicorn main:server --port 9001 --reload --log-level debug  # debug
 
 ```bash
 # valid listing → should pass
-curl -s -X POST http://localhost:9001/check/input \
-  -H "Content-Type: application/json" \
-  -d '{"text": "3 bedroom apartment in Tel Aviv Florentin, 85sqm, asking 3M NIS, renovated"}' | jq
+curl -s -X POST http://localhost:9001/check/input -H "Content-Type: application/json" -d '{"text": "3 bedroom apartment in Tel Aviv Florentin, 85sqm, asking 3M NIS, renovated"}' | jq
 
 # spam → should block
 curl -s -X POST http://localhost:9001/check/input \

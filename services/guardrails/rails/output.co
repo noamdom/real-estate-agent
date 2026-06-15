@@ -1,42 +1,45 @@
-# ── Output rail: check the AI-generated report ───────────────────────────────
-# These intents describe what a PROBLEMATIC report looks like.
+# ── Problematic report patterns ───────────────────────────────────────────────
+# The report text is sent as a user message to NeMo, so we define user intents.
 
-define bot intent makes false legal claims
-  "This property is legally guaranteed to appreciate"
+define user express false guarantee
+  "This property is legally guaranteed to appreciate in value"
   "We certify this property meets all legal requirements"
-  "Guaranteed return on investment of 15%"
-  "This listing is certified by the Israeli Land Registry"
+  "Guaranteed return on investment of fifteen percent"
   "Price is guaranteed not to change"
+  "This purchase is completely legally risk free"
 
-define bot intent invents prices or data
-  "Based on our proprietary data, this property will sell for exactly"
-  "Our algorithm guarantees this valuation is accurate to within 1%"
-  "This property has sold for [invented price] in the past"
+define user express fabricated data
+  "Our algorithm guarantees this valuation is accurate to within one percent"
+  "Based on proprietary data this property will sell for exactly this price"
+  "Our model predicts with certainty that prices will rise twenty percent"
 
-define bot intent gives unauthorized legal advice
-  "You should sign the contract immediately"
-  "There is no legal risk in this purchase"
-  "This transaction is exempt from all taxes"
-  "We advise you to bypass the lawyer review"
+define user express unauthorized legal advice
+  "You should sign the contract immediately without further review"
+  "There is no legal risk in this purchase whatsoever"
+  "This transaction is exempt from all taxes by law"
+  "We advise bypassing the lawyer review entirely"
+
+# ── Bot responses ─────────────────────────────────────────────────────────────
+
+define bot flag false guarantee
+  "FLAGGED: Report contains false legal claims or guarantees."
+
+define bot flag fabricated data
+  "FLAGGED: Report contains fabricated or unverifiable price data."
+
+define bot flag legal advice
+  "FLAGGED: Report contains unauthorized legal advice."
 
 # ── Flows ─────────────────────────────────────────────────────────────────────
 
 define flow validate report content
-  bot intent makes false legal claims
-  bot flag report
-    reason: "Report contains false legal claims or guarantees."
+  user express false guarantee
+  bot flag false guarantee
 
-define flow validate report content
-  bot intent invents prices or data
-  bot flag report
-    reason: "Report contains fabricated or unverifiable price data."
+define flow validate report for data
+  user express fabricated data
+  bot flag fabricated data
 
-define flow validate report content
-  bot intent gives unauthorized legal advice
-  bot flag report
-    reason: "Report contains unauthorized legal advice."
-
-# ── Bot responses ─────────────────────────────────────────────────────────────
-
-define bot flag report
-  "FLAGGED: {{reason}}"
+define flow validate report for advice
+  user express unauthorized legal advice
+  bot flag legal advice

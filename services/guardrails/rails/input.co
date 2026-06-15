@@ -1,52 +1,58 @@
-# ── Valid property listing intents ───────────────────────────────────────────
-# NeMo uses these examples to teach the LLM what a valid submission looks like.
+# ── Valid property listing ────────────────────────────────────────────────────
 
-define user intent is valid property listing
-  "3 bedroom apartment in Tel Aviv, asking 2.5 million NIS, renovated kitchen"
-  "Villa in Jerusalem Rehavia, 290 sqm, private garden, 10M NIS"
-  "Studio in Haifa near the sea, 45 sqm, 1.2M NIS"
-  "Commercial office space in Herzliya Pituah, 500 sqm, for rent"
-  "דירת 4 חדרים בתל אביב, שטח 90 מ״ר, מחיר מבוקש 3.5 מיליון שקל"
+define user express valid listing
+  "3 bedroom apartment in Tel Aviv asking 2.5 million NIS renovated kitchen"
+  "Villa in Jerusalem 290 sqm private garden 10M NIS"
+  "Studio in Haifa near the sea 45 sqm 1.2M NIS"
+  "Commercial office space in Herzliya 500 sqm for rent monthly"
+  "4 room apartment Tel Aviv 90 sqm asking price 3.5 million shekel"
 
-# ── Invalid / spam intents ────────────────────────────────────────────────────
+# ── Spam ─────────────────────────────────────────────────────────────────────
 
-define user intent is spam or advertisement
-  "Buy cheap Rolex watches now, limited offer!"
+define user express spam
+  "Buy cheap Rolex watches now limited offer"
   "Make money fast with crypto investments"
   "Click here for a free iPhone giveaway"
   "Best SEO services for your website"
-  "Nigerian prince needs your help"
+  "Nigerian prince needs your help transfer money"
 
-define user intent is off topic
-  "What is the weather in Tel Aviv today?"
-  "How do I cook pasta?"
+# ── Off topic ─────────────────────────────────────────────────────────────────
+
+define user express off topic
+  "What is the weather in Tel Aviv today"
+  "How do I cook pasta"
   "Tell me a joke"
-  "What is the capital of France?"
-  "Who won the football game last night?"
+  "What is the capital of France"
+  "Who won the football game last night"
 
-define user intent is offensive or harmful
-  "I hate all Arabs and refuse to sell to them"
-  "Only selling to Jewish buyers"
-  "This property has been used for illegal activities"
+# ── Offensive ─────────────────────────────────────────────────────────────────
+
+define user express offensive content
+  "I hate this group of people and refuse to sell to them"
+  "Only selling to certain buyers based on religion"
+  "This property was used for illegal activities"
+
+# ── Bot responses ─────────────────────────────────────────────────────────────
+
+define bot refuse spam
+  "BLOCKED: Submission appears to be spam or an advertisement, not a property listing."
+
+define bot refuse off topic
+  "BLOCKED: Submission is off-topic. Please submit a genuine property listing."
+
+define bot refuse offensive
+  "BLOCKED: Submission contains discriminatory or harmful content."
 
 # ── Flows ─────────────────────────────────────────────────────────────────────
 
 define flow validate property submission
-  user intent is spam or advertisement
-  bot block submission
-    reason: "Submission appears to be spam or an advertisement, not a property listing."
+  user express spam
+  bot refuse spam
 
-define flow validate property submission
-  user intent is off topic
-  bot block submission
-    reason: "Submission is off-topic. Please submit a genuine property listing."
+define flow validate property off topic
+  user express off topic
+  bot refuse off topic
 
-define flow validate property submission
-  user intent is offensive or harmful
-  bot block submission
-    reason: "Submission contains discriminatory or harmful content."
-
-# ── Bot responses ─────────────────────────────────────────────────────────────
-
-define bot block submission
-  "BLOCKED: {{reason}}"
+define flow validate property offensive
+  user express offensive content
+  bot refuse offensive
