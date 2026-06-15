@@ -1,0 +1,316 @@
+{
+  "name": "Property Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "property-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [1264, 864],
+      "id": "99f17b7d-f77b-4085-ae1b-e3d06670ea99",
+      "name": "User Submit",
+      "webhookId": "c0cb3f1a-80ec-42c1-afee-80d798a6ee5d"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n     \"job_id\": \"{{ $execution.id }}\",\n     \"jobId\": \"{{ $execution.id }}\",\n     \"status\": \"received\"\n   }",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [1488, 768],
+      "id": "e4931d87-9339-43c0-9825-ae34800812b9",
+      "name": "Respond to user submission trigger"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "nrnaFsR7FpzPdNm2",
+          "mode": "list",
+          "cachedResultName": "fp-req-status",
+          "cachedResultUrl": "/projects/OJNaUns6ctQh4LTL/datatables/nrnaFsR7FpzPdNm2"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "jobId": "={{ $execution.id }}",
+            "status": "pending",
+            "result": "",
+            "propertyType": "={{ $('User Submit').first().json.body.property_type }}",
+            "location": "={{ $('User Submit').first().json.body.location }}",
+            "completedAt": ""
+          },
+          "matchingColumns": [],
+          "schema": [
+            { "id": "jobId", "displayName": "jobId", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "status", "displayName": "status", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "result", "displayName": "result", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "propertyType", "displayName": "propertyType", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "location", "displayName": "location", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "completedAt", "displayName": "completedAt", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [1488, 960],
+      "id": "570a6d30-c1f6-40ec-8d64-7455a494e0f9",
+      "name": "Insert row"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9001/check/input",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $('User Submit').first().json.body.description || JSON.stringify($('User Submit').first().json.body) }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1712, 960],
+      "id": "guard-input-0001-0001-0001-guardinput01",
+      "name": "Guardrails Input Check"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "pass-check",
+              "leftValue": "={{ $json.pass }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1936, 960],
+      "id": "if-input-pass-0001-0001-ifinputpass1",
+      "name": "Input Valid?"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "nrnaFsR7FpzPdNm2",
+          "mode": "list",
+          "cachedResultName": "fp-req-status",
+          "cachedResultUrl": "/projects/OJNaUns6ctQh4LTL/datatables/nrnaFsR7FpzPdNm2"
+        },
+        "filters": {
+          "conditions": [
+            { "keyName": "jobId", "keyValue": "={{ $('Insert row').item.json.jobId }}" }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "jobId": "={{ $('Insert row').item.json.jobId }}",
+            "status": "rejected",
+            "result": "={{ '❌ Submission rejected: ' + $('Guardrails Input Check').first().json.reason }}",
+            "completedAt": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": ["jobId"],
+          "schema": [
+            { "id": "jobId", "displayName": "jobId", "required": false, "defaultMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "status", "displayName": "status", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "result", "displayName": "result", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "completedAt", "displayName": "completedAt", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [2160, 1120],
+      "id": "reject-row-00001-0001-0001-rejectrow001",
+      "name": "Update row (rejected)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9000/analyze",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('User Submit').first().json.body) }}",
+        "options": { "timeout": 60000 }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2160, 864],
+      "id": "a1b2c3d4-0001-0001-0001-langgraph0001",
+      "name": "LangGraph Analyze"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst jobId = $('Insert row').item.json.jobId;\n\nlet result;\nif (response.status === 'incomplete') {\n  result = response.clarification_message || 'Submission incomplete — missing fields: ' + (response.missing_fields || []).join(', ');\n} else {\n  const a = response.analysis || {};\n  result = [\n    `**Embassy Recommendation:** ${a.recommendation || 'N/A'}`,\n    '',\n    `**Market Context:** ${a.market_context || ''}`,\n    '',\n    `**Property Assessment:** ${a.property_assessment || ''}`,\n    '',\n    `**Pricing Opinion:** ${a.pricing_opinion || ''}`,\n    '',\n    `**Expected Timeline:** ${a.expected_timeline || ''}`,\n  ].join('\\n');\n}\n\nreturn [{ json: { jobId, result, status: response.status, intent: response.intent, confidence: response.confidence } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2384, 864],
+      "id": "a1b2c3d4-0002-0002-0002-routeresponse2",
+      "name": "Route Response"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9001/check/output",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $('Route Response').first().json.result }) }}",
+        "options": { "timeout": 30000 }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2608, 864],
+      "id": "guard-output-0001-0001-0001-guardoutput1",
+      "name": "Guardrails Output Check"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "nrnaFsR7FpzPdNm2",
+          "mode": "list",
+          "cachedResultName": "fp-req-status",
+          "cachedResultUrl": "/projects/OJNaUns6ctQh4LTL/datatables/nrnaFsR7FpzPdNm2"
+        },
+        "filters": {
+          "conditions": [
+            { "keyName": "jobId", "keyValue": "={{ $('Insert row').item.json.jobId }}" }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "jobId": "={{ $('Route Response').first().json.jobId }}",
+            "status": "={{ $('Guardrails Output Check').first().json.pass === false ? 'flagged' : 'done' }}",
+            "result": "={{ $('Guardrails Output Check').first().json.pass === false ? '⚠️ Flagged for review: ' + $('Guardrails Output Check').first().json.reason + '\\n\\n' + $('Route Response').first().json.result : $('Route Response').first().json.result }}",
+            "completedAt": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": ["jobId"],
+          "schema": [
+            { "id": "jobId", "displayName": "jobId", "required": false, "defaultMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "status", "displayName": "status", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "result", "displayName": "result", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "propertyType", "displayName": "propertyType", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "location", "displayName": "location", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "completedAt", "displayName": "completedAt", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [2832, 864],
+      "id": "5d348fea-1183-405e-9030-687abd13106c",
+      "name": "Update row(s)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [3056, 864],
+      "id": "cc703dfd-9bc4-467c-813d-4658e2cf8b5e",
+      "name": "No Operation, do nothing"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "User Submit": {
+      "main": [
+        [
+          { "node": "Respond to user submission trigger", "type": "main", "index": 0 },
+          { "node": "Insert row", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Insert row": {
+      "main": [
+        [
+          { "node": "Guardrails Input Check", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Guardrails Input Check": {
+      "main": [
+        [
+          { "node": "Input Valid?", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Input Valid?": {
+      "main": [
+        [
+          { "node": "LangGraph Analyze", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Update row (rejected)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "LangGraph Analyze": {
+      "main": [
+        [
+          { "node": "Route Response", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Route Response": {
+      "main": [
+        [
+          { "node": "Guardrails Output Check", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Guardrails Output Check": {
+      "main": [
+        [
+          { "node": "Update row(s)", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Update row(s)": {
+      "main": [
+        [
+          { "node": "No Operation, do nothing", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "4d18f798-96dc-40df-82e3-cd7694a5f07b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5c6430176c71ae4a87ba54ba8395dd80647da38cf5d07ddc23d97f2bc7d7162e"
+  },
+  "id": "YIcYcBiDst8iyiNS",
+  "tags": []
+}
