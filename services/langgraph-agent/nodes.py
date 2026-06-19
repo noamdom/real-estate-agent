@@ -252,10 +252,12 @@ Reply with a JSON object containing exactly these keys:
 Keep each value to 1–3 sentences. Be factual. Do not invent prices or legal claims.
 recommendation must start with one of: BUY | NEGOTIATE | RENT | PASS."""
 
+    price = norm.get('price_asking')
+    price_str = f"{price:,} NIS" if price is not None else "not specified"
     user = (
         f"Property: {norm.get('property_type')} in {norm.get('location')}\n"
         f"Size: {norm.get('size_sqm')} sqm, {norm.get('num_rooms')} rooms\n"
-        f"Asking price: {norm.get('price_asking'):,} NIS\n"
+        f"Asking price: {price_str}\n"
         f"Condition: {norm.get('condition', 'not specified')}\n"
         f"Intent: {state.get('intent')}\n\n"
         f"Comparable listings:\n{comps_text}"
