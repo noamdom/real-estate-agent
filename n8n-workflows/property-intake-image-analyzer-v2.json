@@ -155,6 +155,7 @@
         "jsonBody": "={{ JSON.stringify($('User Submit').first().json.body) }}",
         "options": { "timeout": 60000 }
       },
+      "onError": "continueErrorOutput",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [2160, 864],
@@ -200,6 +201,7 @@
         },
         "options": { "timeout": 30000 }
       },
+      "onError": "continueRegularOutput",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [2608, 760],
@@ -225,6 +227,7 @@
         "jsonBody": "={{ JSON.stringify({ text: $('Route Response').first().json.result }) }}",
         "options": { "timeout": 30000 }
       },
+      "onError": "continueErrorOutput",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [3056, 864],
@@ -281,6 +284,47 @@
       "position": [3504, 864],
       "id": "cc703dfd-9bc4-467c-813d-4658e2cf8b5e",
       "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "nrnaFsR7FpzPdNm2",
+          "mode": "list",
+          "cachedResultName": "fp-req-status",
+          "cachedResultUrl": "/projects/OJNaUns6ctQh4LTL/datatables/nrnaFsR7FpzPdNm2"
+        },
+        "filters": {
+          "conditions": [
+            { "keyName": "jobId", "keyValue": "={{ $('Insert row').item.json.jobId }}" }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "jobId": "={{ $('Insert row').item.json.jobId }}",
+            "status": "rejected",
+            "result": "={{ '❌ Processing error: ' + ($input.first().json.error?.message || $input.first().json.message || 'Service unavailable — please resubmit') }}",
+            "completedAt": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": ["jobId"],
+          "schema": [
+            { "id": "jobId", "displayName": "jobId", "required": false, "defaultMatch": true, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "status", "displayName": "status", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "result", "displayName": "result", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false },
+            { "id": "completedAt", "displayName": "completedAt", "required": false, "defaultMatch": false, "display": true, "type": "string", "readOnly": false, "removed": false }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [2384, 1120],
+      "id": "error-row-00001-0001-0001-errorrow0001",
+      "name": "Update row (processing error)"
     }
   ],
   "pinData": {},
@@ -320,7 +364,10 @@
     "LangGraph Analyze": {
       "main": [
         [
-          { "node": "Has Image URL?", "type": "main", "index": 0 }
+          { "node": "Has Image File?", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Update row (processing error)", "type": "main", "index": 0 }
         ]
       ]
     },
@@ -352,6 +399,9 @@
       "main": [
         [
           { "node": "Update row(s)", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Update row (processing error)", "type": "main", "index": 0 }
         ]
       ]
     },
