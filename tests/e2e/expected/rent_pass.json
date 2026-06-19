@@ -1,0 +1,12 @@
+{
+  "intent": "rent",
+  "confidence": 0.9,
+  "status": "done",
+  "analysis": {
+    "recommendation": "...",
+    "estimated_value": "...",
+    "expected_timeline": "..."
+  },
+  "missing_fields": [],
+  "rag_comps": []
+}

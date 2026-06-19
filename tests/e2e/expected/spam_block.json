@@ -1,0 +1,5 @@
+{
+  "_comment": "Guardrails /check/input response when spam is submitted",
+  "pass": false,
+  "reason": "Spam or off-topic content detected"
+}
