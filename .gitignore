@@ -25,3 +25,8 @@ node_modules/
 # Editor
 .vscode/
 .idea/
+
+
+# Images
+assets/House_Room_Dataset
+assets/rooms-images.zip
