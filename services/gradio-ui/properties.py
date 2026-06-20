@@ -1,3 +1,5 @@
+import json
+
 import httpx
 
 from config import LANGGRAPH_API_URL
@@ -41,7 +43,12 @@ def render_properties(rows) -> str:
 
     parts = []
     for r in rows:
-        img = f"![property]({r['image_url']})" if r.get("image_urls") else "*(no image)*"
+        raw_urls = r.get("image_urls") or ""
+        try:
+            first_url = json.loads(raw_urls)[0] if raw_urls else ""
+        except Exception:
+            first_url = raw_urls
+        img = f"![property]({first_url})" if first_url else "*(no image)*"
         price_str = f"**Price:** {int(r['price_asking']):,} NIS | " if r.get("price_asking") else ""
         snippet = (r.get("result") or "")[:300]
         ellipsis = "…" if len(r.get("result") or "") > 300 else ""

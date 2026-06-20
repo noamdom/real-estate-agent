@@ -666,7 +666,7 @@
         "url": "http://host.docker.internal:9002/analyse",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ image_url: 'https://fp-property-images.s3.amazonaws.com/' + $('Insert row').first().json.job_id + '/' + $('User Submit').first().binary.file.fileName }) }}",
+        "jsonBody": "={{ JSON.stringify({ image_url: 'https://fp-property-images.s3.us-east-1.amazonaws.com/' + $('Insert row').first().json.job_id + '/' + $('User Submit').first().binary.file.fileName }) }}",
         "options": {
           "timeout": 30000
         }
@@ -683,7 +683,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const langResult = $('LangGraph Analyze').first().json;\nconst job_id = $('Insert row').first().json.job_id;\n\nlet imageAnalysis = '';\nlet imageUrl = '';\n\ntry {\n  const img = $('Image Analyzer').first().json;\n  if (img && img.room_type) {\n    imageAnalysis = 'Room: ' + img.room_type + ' | Condition: ' + img.condition_score + '/1.0 | Confidence: ' + Math.round(img.confidence * 100) + '%';\n  }\n} catch (e) {}\n\ntry {\n  // Only build URL if Image Analyzer ran (S3 upload succeeded)\n  const imgResult = $('Image Analyzer').first().json;\n  const fileName = $('User Submit').first().binary?.file?.fileName || '';\n  if (imgResult && fileName) {\n    imageUrl = 'https://fp-property-images.s3.amazonaws.com/' + job_id + '/' + fileName;\n  }\n} catch (e) {}\n\nlet result;\nif (langResult.status === 'incomplete') {\n  result = langResult.clarification_message || 'Submission incomplete \u2014 missing fields: ' + (langResult.missing_fields || []).join(', ');\n} else {\n  const a = langResult.analysis || {};\n  result = [\n    '**Embassy Recommendation:** ' + (a.recommendation || 'N/A'),\n    '',\n    '**Market Context:** ' + (a.market_context || ''),\n    '',\n    '**Property Assessment:** ' + (a.property_assessment || ''),\n    '',\n    '**Pricing Opinion:** ' + (a.pricing_opinion || ''),\n    '',\n    '**Expected Timeline:** ' + (a.expected_timeline || ''),\n  ].join('\\n');\n  if (imageAnalysis) {\n    result += '\\n\\n**Image Analysis:** ' + imageAnalysis;\n  }\n}\n\nreturn [{ json: {\n  job_id,\n  result,\n  status: langResult.status,\n  intent: langResult.intent,\n  confidence: langResult.confidence || 0,\n  recommendation: (langResult.analysis || {}).recommendation || 'PASS',\n  image_urls: imageUrl ? JSON.stringify([imageUrl]) : '',\n  image_analysis: imageAnalysis,\n} }];"
+        "jsCode": "const langResult = $('LangGraph Analyze').first().json;\nconst job_id = $('Insert row').first().json.job_id;\n\nlet imageAnalysis = '';\nlet imageUrl = '';\n\ntry {\n  const img = $('Image Analyzer').first().json;\n  if (img && img.room_type) {\n    imageAnalysis = 'Room: ' + img.room_type + ' | Condition: ' + img.condition_score + '/1.0 | Confidence: ' + Math.round(img.confidence * 100) + '%';\n  }\n} catch (e) {}\n\ntry {\n  // Only build URL if Image Analyzer ran (S3 upload succeeded)\n  const imgResult = $('Image Analyzer').first().json;\n  const fileName = $('User Submit').first().binary?.file?.fileName || '';\n  if (imgResult && fileName) {\n    imageUrl = 'https://fp-property-images.s3.us-east-1.amazonaws.com/' + job_id + '/' + fileName;\n  }\n} catch (e) {}\n\nlet result;\nif (langResult.status === 'incomplete') {\n  result = langResult.clarification_message || 'Submission incomplete \u2014 missing fields: ' + (langResult.missing_fields || []).join(', ');\n} else {\n  const a = langResult.analysis || {};\n  result = [\n    '**Embassy Recommendation:** ' + (a.recommendation || 'N/A'),\n    '',\n    '**Market Context:** ' + (a.market_context || ''),\n    '',\n    '**Property Assessment:** ' + (a.property_assessment || ''),\n    '',\n    '**Pricing Opinion:** ' + (a.pricing_opinion || ''),\n    '',\n    '**Expected Timeline:** ' + (a.expected_timeline || ''),\n  ].join('\\n');\n  if (imageAnalysis) {\n    result += '\\n\\n**Image Analysis:** ' + imageAnalysis;\n  }\n}\n\nreturn [{ json: {\n  job_id,\n  result,\n  status: langResult.status,\n  intent: langResult.intent,\n  confidence: langResult.confidence || 0,\n  recommendation: (langResult.analysis || {}).recommendation || 'PASS',\n  image_urls: imageUrl ? JSON.stringify([imageUrl]) : '',\n  image_analysis: imageAnalysis,\n} }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1450,7 +1450,7 @@
           "mappingMode": "defineBelow",
           "value": {
             "job_id": "={{ $('Insert row').first().json.job_id }}",
-            "image_urls": "={{ JSON.stringify(['https://fp-property-images.s3.amazonaws.com/' + $('Insert row').first().json.job_id + '/' + $('User Submit').first().binary.file.fileName]) }}",
+            "image_urls": "={{ JSON.stringify(['https://fp-property-images.s3.us-east-1.amazonaws.com/' + $('Insert row').first().json.job_id + '/' + $('User Submit').first().binary.file.fileName]) }}",
             "image_analysis": "={{ $('Image Analyzer').first().json.room_type ? 'Room: ' + $('Image Analyzer').first().json.room_type + ' | Condition: ' + $('Image Analyzer').first().json.condition_score + '/1.0 | Confidence: ' + Math.round($('Image Analyzer').first().json.confidence * 100) + '%' : '' }}"
           },
           "matchingColumns": [

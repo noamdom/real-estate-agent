@@ -1,7 +1,10 @@
+import json
 import logging
 import os
 from typing import Optional
+from urllib.parse import urlparse
 
+import boto3
 import gspread
 from fastapi import APIRouter, HTTPException
 from google.oauth2.service_account import Credentials
@@ -59,4 +62,40 @@ def get_properties(
     if status:
         rows = [r for r in rows if r.get("status") == status]
 
-    return rows
+    return [_presign_images(r) for r in rows]
+
+
+def _presign_images(row: dict) -> dict:
+    raw = row.get("image_urls") or ""
+    if not raw:
+        return row
+    try:
+        urls = json.loads(raw)
+    except Exception:
+        urls = [raw]
+    signed = [_presign(u) for u in urls if u]
+    row = dict(row)
+    row["image_urls"] = json.dumps(signed)
+    return row
+
+
+def _presign(url: str, expires: int = 3600) -> str:
+    try:
+        parsed = urlparse(url)
+        # bucket name is the first hostname segment: fp-property-images.s3…
+        bucket = parsed.hostname.split(".")[0]
+        key = parsed.path.lstrip("/")
+        s3 = boto3.client(
+            "s3",
+            region_name=os.getenv("AWS_REGION", "us-east-1"),
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+        )
+        return s3.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": key},
+            ExpiresIn=expires,
+        )
+    except Exception as e:
+        logger.warning("presign failed for %s: %s", url, e)
+        return url
