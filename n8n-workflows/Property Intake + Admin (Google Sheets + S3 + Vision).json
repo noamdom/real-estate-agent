@@ -638,52 +638,7 @@
     },
     {
       "parameters": {
-        "operation": "upload",
-        "bucketName": "fp-property-images",
-        "fileName": "={{ $('Insert row').first().json.job_id + '/' + $binary.file.fileName }}",
-        "binaryPropertyName": "file",
-        "additionalFields": {}
-      },
-      "type": "n8n-nodes-base.awsS3",
-      "typeVersion": 1,
-      "position": [
-        2000,
-        3312
-      ],
-      "id": "24945d0c-db7a-45fa-944c-07d04510de16",
-      "name": "S3 Upload",
-      "credentials": {
-        "aws": {
-          "id": "1YWnzhjGEyVBQ4A1",
-          "name": "AWS (IAM) account"
-        }
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "http://host.docker.internal:9002/analyse",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ image_url: 'https://fp-property-images.s3.us-east-1.amazonaws.com/' + $('Insert row').first().json.job_id + '/' + $('User Submit').first().binary.file.fileName }) }}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        2224,
-        3312
-      ],
-      "id": "1c8cbeb1-630c-4212-8107-e269bd640b35",
-      "name": "Image Analyzer",
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const langResult = $('LangGraph Analyze').first().json;\nconst job_id = $('Insert row').first().json.job_id;\n\nlet imageAnalysis = '';\nlet imageUrl = '';\n\ntry {\n  const img = $('Image Analyzer').first().json;\n  if (img && img.room_type) {\n    imageAnalysis = 'Room: ' + img.room_type + ' | Condition: ' + img.condition_score + '/1.0 | Confidence: ' + Math.round(img.confidence * 100) + '%';\n  }\n} catch (e) {}\n\ntry {\n  // Only build URL if Image Analyzer ran (S3 upload succeeded)\n  const imgResult = $('Image Analyzer').first().json;\n  const fileName = $('User Submit').first().binary?.file?.fileName || '';\n  if (imgResult && fileName) {\n    imageUrl = 'https://fp-property-images.s3.us-east-1.amazonaws.com/' + job_id + '/' + fileName;\n  }\n} catch (e) {}\n\nlet result;\nif (langResult.status === 'incomplete') {\n  result = langResult.clarification_message || 'Submission incomplete \u2014 missing fields: ' + (langResult.missing_fields || []).join(', ');\n} else {\n  const a = langResult.analysis || {};\n  result = [\n    '**Embassy Recommendation:** ' + (a.recommendation || 'N/A'),\n    '',\n    '**Market Context:** ' + (a.market_context || ''),\n    '',\n    '**Property Assessment:** ' + (a.property_assessment || ''),\n    '',\n    '**Pricing Opinion:** ' + (a.pricing_opinion || ''),\n    '',\n    '**Expected Timeline:** ' + (a.expected_timeline || ''),\n  ].join('\\n');\n  if (imageAnalysis) {\n    result += '\\n\\n**Image Analysis:** ' + imageAnalysis;\n  }\n}\n\nreturn [{ json: {\n  job_id,\n  result,\n  status: langResult.status,\n  intent: langResult.intent,\n  confidence: langResult.confidence || 0,\n  recommendation: (langResult.analysis || {}).recommendation || 'PASS',\n  image_urls: imageUrl ? JSON.stringify([imageUrl]) : '',\n  image_analysis: imageAnalysis,\n} }];"
+        "jsCode": "const langResult = $('LangGraph Analyze').first().json;\nconst job_id = $('Insert row').first().json.job_id;\n\nlet imageAnalysis = '';\nlet imageUrls = '';\n\ntry {\n  const img = $('Call Image Analyser').first().json;\n  imageUrls = JSON.stringify(img.image_urls || []);\n  imageAnalysis = img.room_type\n    ? 'Room: ' + img.room_type + ' | Condition: ' + img.condition_score + '/1.0 | Confidence: ' + Math.round(img.confidence * 100) + '%'\n    : '';\n} catch (e) {}\n\nlet result;\nif (langResult.status === 'incomplete') {\n  result = langResult.clarification_message || 'Submission incomplete \u2014 missing fields: ' + (langResult.missing_fields || []).join(', ');\n} else {\n  const a = langResult.analysis || {};\n  result = [\n    '**Embassy Recommendation:** ' + (a.recommendation || 'N/A'),\n    '',\n    '**Market Context:** ' + (a.market_context || ''),\n    '',\n    '**Property Assessment:** ' + (a.property_assessment || ''),\n    '',\n    '**Pricing Opinion:** ' + (a.pricing_opinion || ''),\n    '',\n    '**Expected Timeline:** ' + (a.expected_timeline || ''),\n  ].join('\\n');\n  if (imageAnalysis) {\n    result += '\\n\\n**Image Analysis:** ' + imageAnalysis;\n  }\n}\n\nreturn [{ json: {\n  job_id,\n  result,\n  status: langResult.status,\n  intent: langResult.intent,\n  confidence: langResult.confidence || 0,\n  recommendation: (langResult.analysis || {}).recommendation || 'PASS',\n  image_urls: imageUrls,\n  image_analysis: imageAnalysis,\n} }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1450,8 +1405,8 @@
           "mappingMode": "defineBelow",
           "value": {
             "job_id": "={{ $('Insert row').first().json.job_id }}",
-            "image_urls": "={{ JSON.stringify(['https://fp-property-images.s3.us-east-1.amazonaws.com/' + $('Insert row').first().json.job_id + '/' + $('User Submit').first().binary.file.fileName]) }}",
-            "image_analysis": "={{ $('Image Analyzer').first().json.room_type ? 'Room: ' + $('Image Analyzer').first().json.room_type + ' | Condition: ' + $('Image Analyzer').first().json.condition_score + '/1.0 | Confidence: ' + Math.round($('Image Analyzer').first().json.confidence * 100) + '%' : '' }}"
+            "image_urls": "={{ JSON.stringify($json.image_urls || []) }}",
+            "image_analysis": "={{ $json.room_type ? 'Room: ' + $json.room_type + ' | Condition: ' + $json.condition_score + '/1.0 | Confidence: ' + Math.round($json.confidence * 100) + '%' : '' }}"
           },
           "matchingColumns": [
             "job_id"
@@ -1679,16 +1634,75 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst webhookBinary = $('User Submit').first().binary || {};\nreturn items.map(item => ({\n  json: item.json,\n  binary: webhookBinary,\n}));"
+        "jsCode": "const userItem  = $('User Submit').first();\nconst binary     = userItem.binary || {};\nconst jobId      = $('Insert row').first().json.job_id;\nconst actualKeys = Object.keys(binary).filter(k => k.startsWith('file')).sort();\nconst MAX_FILES  = 5;\n\n// Pad slots so formBinaryData params never reference a missing key\nconst outBinary = {};\nfor (let i = 0; i < MAX_FILES; i++) {\n  const src = actualKeys[Math.min(i, actualKeys.length - 1)];\n  outBinary[`file${i}`] = binary[src];\n}\n\nreturn [{ json: { job_id: jobId, file_count: actualKeys.length }, binary: outBinary }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1888,
+        1900,
         3312
       ],
-      "id": "prep-binary-0001-0001-0001-prepbinary01",
-      "name": "Prepare Binary"
+      "id": "prepare-img-json-0001-0001-0001",
+      "name": "Prepare Image JSON",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9002/analyse",
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "job_id",
+              "value": "={{ $json.job_id }}"
+            },
+            {
+              "name": "file_count",
+              "value": "={{ $json.file_count }}"
+            },
+            {
+              "name": "file0",
+              "parameterType": "formBinaryData",
+              "inputDataFieldName": "file0"
+            },
+            {
+              "name": "file1",
+              "parameterType": "formBinaryData",
+              "inputDataFieldName": "file1"
+            },
+            {
+              "name": "file2",
+              "parameterType": "formBinaryData",
+              "inputDataFieldName": "file2"
+            },
+            {
+              "name": "file3",
+              "parameterType": "formBinaryData",
+              "inputDataFieldName": "file3"
+            },
+            {
+              "name": "file4",
+              "parameterType": "formBinaryData",
+              "inputDataFieldName": "file4"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2150,
+        3312
+      ],
+      "id": "call-analyser-0001-0001-0001-callimg01",
+      "name": "Call Image Analyser",
+      "onError": "continueRegularOutput"
     }
   ],
   "pinData": {},
@@ -1782,7 +1796,7 @@
       "main": [
         [
           {
-            "node": "Prepare Binary",
+            "node": "Prepare Image JSON",
             "type": "main",
             "index": 0
           }
@@ -1790,28 +1804,6 @@
         [
           {
             "node": "Route Response",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "S3 Upload": {
-      "main": [
-        [
-          {
-            "node": "Image Analyzer",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Image Analyzer": {
-      "main": [
-        [
-          {
-            "node": "Update row (image data)",
             "type": "main",
             "index": 0
           }
@@ -1869,11 +1861,22 @@
         ]
       ]
     },
-    "Prepare Binary": {
+    "Prepare Image JSON": {
       "main": [
         [
           {
-            "node": "S3 Upload",
+            "node": "Call Image Analyser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Image Analyser": {
+      "main": [
+        [
+          {
+            "node": "Update row (image data)",
             "type": "main",
             "index": 0
           }
@@ -1884,12 +1887,12 @@
   "active": false,
   "settings": {
     "executionOrder": "v1",
-    "binaryMode": "separate",
+    "binaryMode": "default",
     "timeSavedMode": "fixed",
     "callerPolicy": "workflowsFromSameOwner",
     "availableInMCP": false
   },
-  "versionId": "68cb9ca7-1b17-4390-a262-ee0b7fb6bd4d",
+  "versionId": "9e967052-ddcf-4ec5-a7e6-c904969329e1",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "5c6430176c71ae4a87ba54ba8395dd80647da38cf5d07ddc23d97f2bc7d7162e"

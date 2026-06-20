@@ -42,10 +42,11 @@ with gr.Blocks(title="AI Property Triage System") as app:
                     send_btn = gr.Button("Send", variant="secondary", scale=1)
 
                 image_upload = gr.File(
-                    label="📎 Upload property images (optional, multiple allowed)",
+                    label="📎 Upload property images — max 5 (optional)",
                     file_types=["image"],
                     file_count="multiple",
                 )
+                image_limit_warning = gr.Markdown(visible=False)
 
                 gr.Markdown("---")
                 submit_btn = gr.Button("📤 Submit Listing", variant="primary", size="lg")
@@ -84,11 +85,23 @@ with gr.Blocks(title="AI Property Triage System") as app:
         send_btn.click(intake_mod.intake_respond, respond_inputs, respond_outputs)
         msg_input.submit(intake_mod.intake_respond, respond_inputs, respond_outputs)
 
+        MAX_IMAGES = 5
+
+        def _on_images_change(files, fields, desc):
+            too_many = isinstance(files, list) and len(files) > MAX_IMAGES
+            warning = gr.update(
+                value=f"⚠️ Please remove images — max {MAX_IMAGES} allowed.",
+                visible=too_many,
+            )
+            checklist = intake_mod.render_checklist(fields, bool(files), desc)
+            btn = gr.update(interactive=not too_many)
+            return checklist, warning, btn
+
         # Update checklist when images are added/removed
         image_upload.change(
-            lambda files, fields, desc: intake_mod.render_checklist(fields, bool(files), desc),
+            _on_images_change,
             [image_upload, fields_state, description_box],
-            fields_display,
+            [fields_display, image_limit_warning, submit_btn],
         )
 
         # Update checklist when user edits description directly
@@ -99,6 +112,8 @@ with gr.Blocks(title="AI Property Triage System") as app:
         )
 
         def _do_submit(fields, description, image_files):
+            if isinstance(image_files, list) and len(image_files) > MAX_IMAGES:
+                image_files = image_files[:MAX_IMAGES]
             result = submission_mod.submit_from_chat(fields, description, image_files)
             return gr.update(value=result, visible=True)
 

@@ -73,14 +73,12 @@ def submit_from_chat(fields: dict, description: str, image_files) -> str:
     raw = image_files if isinstance(image_files, list) else ([image_files] if image_files else [])
     image_paths = [p for f in raw if (p := _get_file_path(f))]
 
-    # n8n stores the binary under the exact field name sent by the client.
-    # Sending multiple files all named "file" causes n8n to rename them file0/file1/…,
-    # breaking the Image Analyzer which looks for $binary.file.
-    # Fix: always send the first image as {"file": <handle>} (dict, not list) so n8n
-    # stores it under $binary.file regardless of how many images the user uploaded.
-    first_image = open(image_paths[0], "rb") if image_paths else None
+    # Send all images as indexed fields (file0, file1, …) so n8n stores each under
+    # its own binary key. The "Forward to Image Analyzer" Code node in n8n iterates
+    # all keys and forwards them to the image-analyzer service.
+    open_files = [open(p, "rb") for p in image_paths]
     try:
-        files = {"file": first_image} if first_image else None
+        files = {f"file{i}": fh for i, fh in enumerate(open_files)} if open_files else None
 
         with httpx.Client(timeout=30) as client:
             resp = client.post(N8N_WEBHOOK_URL, data=form_fields, files=files)
@@ -88,7 +86,10 @@ def submit_from_chat(fields: dict, description: str, image_files) -> str:
 
         job = resp.json()
         job_id = job.get("job_id") or job.get("jobId", "unknown")
-        img_note = f" ({len(image_paths)} image{'s' if len(image_paths) != 1 else ''} uploaded, first analysed)" if image_paths else ""
+        img_note = (
+            f" ({len(image_paths)} image{'s' if len(image_paths) != 1 else ''} attached)"
+            if image_paths else ""
+        )
         return (
             f"✅ **Submitted!**{img_note} Job ID: `{job_id}`\n\n"
             "Switch to the **Submissions** tab to check status."
@@ -96,8 +97,8 @@ def submit_from_chat(fields: dict, description: str, image_files) -> str:
     except Exception as exc:
         return f"❌ Submission failed: `{exc}`"
     finally:
-        if first_image:
-            first_image.close()
+        for fh in open_files:
+            fh.close()
 
 
 # ── One-shot status check (for Submissions tab) ───────────────────────────────
@@ -176,7 +177,7 @@ def submit_and_poll(
         open_file = None
         if image_file:
             open_file = open(image_file, "rb")
-            files = {"file": open_file}
+            files = {"file0": open_file}
 
         with httpx.Client(timeout=30) as client:
             resp = client.post(N8N_WEBHOOK_URL, data=fields, files=files)

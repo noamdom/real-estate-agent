@@ -280,6 +280,7 @@ if should_run n8n; then
     fi
 
     # Sell + image (bedroom photo from dataset)
+    # Field name is file0 to match the indexed convention Gradio uses (file0, file1, …).
     N8N_IMAGE_FILE="$N8N_DATASET_DIR/Bedroom/$(ls "$N8N_DATASET_DIR/Bedroom/" | sort | tail -1)"
     N8N_WITH_IMAGE=$(curl -sf -X POST "$N8N_URL" \
       --max-time 15 \
@@ -291,7 +292,7 @@ if should_run n8n; then
       -F "num_rooms=3" \
       -F "condition=renovated" \
       -F "intent=sell" \
-      -F "file=@$N8N_IMAGE_FILE" \
+      -F "file0=@$N8N_IMAGE_FILE" \
       2>&1 || echo '{}')
     if has_key "$N8N_WITH_IMAGE" job_id || has_key "$N8N_WITH_IMAGE" jobId; then
       IMG_JOB=$(python3 -c "import json; d=json.loads('''$N8N_WITH_IMAGE'''); print(d.get('job_id') or d.get('jobId','?'))")
