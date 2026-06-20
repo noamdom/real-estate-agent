@@ -1,6 +1,7 @@
 import gradio as gr
 
 import intake as intake_mod
+import properties as properties_mod
 import submission as submission_mod
 from config import GRADIO_SERVER_NAME, GRADIO_SERVER_PORT
 
@@ -127,6 +128,38 @@ with gr.Blocks(title="AI Property Triage System") as app:
 
         check_btn.click(submission_mod.check_status_once, job_id_input, status_display)
         job_id_input.submit(submission_mod.check_status_once, job_id_input, status_display)
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Tab 3 — Properties
+    # ═══════════════════════════════════════════════════════════════════════════
+    with gr.Tab("🏠 Properties"):
+        with gr.Row():
+            filter_location  = gr.Textbox(label="Location", scale=2)
+            filter_type      = gr.Dropdown(
+                ["", "apartment", "villa", "commercial", "land"],
+                label="Type",
+                scale=1,
+            )
+            filter_min_rooms = gr.Number(label="Min rooms", scale=1, minimum=0)
+            filter_max_price = gr.Number(label="Max price (NIS)", scale=1, minimum=0)
+            refresh_btn      = gr.Button("🔄 Refresh", scale=1)
+
+        properties_display = gr.Markdown("*Click Refresh to load listings.*")
+
+        def _load(location, ptype, rooms, price):
+            rows = properties_mod.fetch_properties(
+                location=location or "",
+                property_type=ptype or "",
+                min_rooms=rooms or None,
+                max_price=price or None,
+            )
+            return properties_mod.render_properties(rows)
+
+        refresh_btn.click(
+            _load,
+            [filter_location, filter_type, filter_min_rooms, filter_max_price],
+            properties_display,
+        )
 
 if __name__ == "__main__":
     app.launch(

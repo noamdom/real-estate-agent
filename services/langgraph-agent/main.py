@@ -11,10 +11,12 @@ from pydantic import BaseModel
 load_dotenv(override=True)
 
 from graph import app as langgraph_app  # noqa: E402 — must be after load_dotenv
+from properties_router import router as properties_router  # noqa: E402
 
 log = logging.getLogger("langgraph")
 
 server = FastAPI(title="LangGraph Property Analysis Service", version="1.0.0")
+server.include_router(properties_router)
 
 
 @server.on_event("startup")

@@ -11,6 +11,7 @@ N8N_STATUS_URL = os.getenv(
     "N8N_STATUS_URL",
     "http://localhost:5678/webhook-test",
 )
+LANGGRAPH_API_URL = os.getenv("LANGGRAPH_API_URL", "http://localhost:9000")
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
