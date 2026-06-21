@@ -1,8 +1,30 @@
 import json
+import re
 
 import httpx
+import ollama as ollama_sdk
 
-from config import LANGGRAPH_API_URL
+from config import LANGGRAPH_API_URL, OLLAMA_MODEL, OLLAMA_URL
+
+_FILTER_PROMPT = (
+    "You are a property search assistant. Extract search filters from the user's request "
+    "and write a short one-sentence confirmation reply.\n\n"
+    "Available filters:\n"
+    "  location       — city or neighbourhood name (string)\n"
+    "  property_type  — apartment | villa | commercial | land\n"
+    "  min_rooms      — minimum number of rooms (integer)\n"
+    "  max_price      — maximum asking price in NIS (integer)\n\n"
+    "Return ONLY a valid JSON object — no markdown, no explanation:\n"
+    '{{\n'
+    '  "location": string or null,\n'
+    '  "property_type": "apartment"|"villa"|"commercial"|"land" or null,\n'
+    '  "min_rooms": integer or null,\n'
+    '  "max_price": integer or null,\n'
+    '  "reply": "One sentence confirming the active filters, or noting that all filters are cleared"\n'
+    '}}\n\n'
+    "If the user wants to reset / show all / clear filters, set every filter field to null.\n\n"
+    "User request: {message}\nJSON:"
+)
 
 _REC_PALETTE = {
     "BUY":       ("#dcfce7", "#166534", "#16a34a"),
@@ -205,3 +227,54 @@ def render_properties(rows) -> str:
         cards.append(card)
 
     return "\n".join(cards)
+
+
+# ── Filter chatbot ─────────────────────────────────────────────────────────────
+
+def chat_filter(
+    message: str,
+    history: list,
+) -> tuple[list, str, str, int | None, int | None, str]:
+    """Parse a natural-language filter request via Ollama.
+
+    Returns:
+        (new_history, location, property_type, min_rooms, max_price, rendered_properties)
+    """
+    history = list(history) + [{"role": "user", "content": message}]
+
+    location = ""
+    property_type = ""
+    min_rooms = None
+    max_price = None
+    reply = "Searching…"
+
+    try:
+        client = ollama_sdk.Client(host=OLLAMA_URL)
+        resp = client.chat(
+            model=OLLAMA_MODEL,
+            messages=[{"role": "user", "content": _FILTER_PROMPT.format(message=message)}],
+            stream=False,
+        )
+        text = resp["message"]["content"]
+        m = re.search(r"\{.*\}", text, re.DOTALL)
+        if m:
+            data = json.loads(m.group())
+            location = data.get("location") or ""
+            property_type = data.get("property_type") or ""
+            min_rooms = data.get("min_rooms")
+            max_price = data.get("max_price")
+            reply = data.get("reply") or reply
+    except Exception as exc:
+        reply = f"Sorry, I couldn't process that. ({exc})"
+
+    history.append({"role": "assistant", "content": reply})
+
+    rows = fetch_properties(
+        location=location,
+        property_type=property_type,
+        min_rooms=min_rooms,
+        max_price=max_price,
+    )
+    rendered = render_properties(rows)
+
+    return history, location, property_type, min_rooms, max_price, rendered
