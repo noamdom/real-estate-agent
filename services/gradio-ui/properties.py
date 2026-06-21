@@ -4,6 +4,13 @@ import httpx
 
 from config import LANGGRAPH_API_URL
 
+_REC_PALETTE = {
+    "BUY":       ("#dcfce7", "#166534", "#16a34a"),
+    "NEGOTIATE": ("#fef9c3", "#713f12", "#ca8a04"),
+    "RENT":      ("#dbeafe", "#1e3a8a", "#2563eb"),
+    "PASS":      ("#fee2e2", "#7f1d1d", "#dc2626"),
+}
+
 
 def fetch_properties(
     location: str = "",
@@ -34,6 +41,114 @@ def fetch_properties(
         return f"__error__: {e}"
 
 
+def _parse_sections(result: str) -> dict:
+    """Extract named sections from the result markdown text."""
+    keys = [
+        "Embassy Recommendation",
+        "Market Context",
+        "Property Assessment",
+        "Pricing Opinion",
+        "Expected Timeline",
+    ]
+    sections: dict = {}
+    for key in keys:
+        marker = f"**{key}:** "
+        if marker not in result:
+            continue
+        start = result.index(marker) + len(marker)
+        # Find where the next section starts
+        end = len(result)
+        for other in keys:
+            other_marker = f"\n\n**{other}:** "
+            pos = result.find(other_marker, start)
+            if pos != -1 and pos < end:
+                end = pos
+        sections[key] = result[start:end].strip()
+    return sections
+
+
+def _rec_badge(recommendation: str) -> str:
+    word = (recommendation or "").split()[0].upper()
+    bg, text, border = _REC_PALETTE.get(word, ("#f3f4f6", "#374151", "#d1d5db"))
+    label = word or "—"
+    return (
+        f'<span style="background:{bg};color:{text};border:1px solid {border};'
+        f'padding:2px 12px;border-radius:20px;font-size:12px;font-weight:700;">'
+        f'{label}</span>'
+    )
+
+
+def _section_block(label: str, text: str) -> str:
+    if not text:
+        return ""
+    return (
+        f'<div style="margin-top:8px;">'
+        f'<div style="font-size:11px;font-weight:700;color:var(--body-text-color-subdued,#94a3b8);'
+        f'text-transform:uppercase;letter-spacing:0.6px;margin-bottom:3px;">{label}</div>'
+        f'<div style="font-size:13px;color:var(--body-text-color,inherit);line-height:1.5;">{text}</div>'
+        f'</div>'
+    )
+
+
+_PREV_JS = (
+    "(function(b){"
+    "var p=b.closest('[data-carousel]');"
+    "var ss=p.querySelectorAll('[data-slide]');"
+    "var c=Array.from(ss).findIndex(function(s){return s.style.display!=='none';});"
+    "ss[c].style.display='none';"
+    "ss[(c-1+ss.length)%ss.length].style.display='block';"
+    "})(this)"
+)
+_NEXT_JS = (
+    "(function(b){"
+    "var p=b.closest('[data-carousel]');"
+    "var ss=p.querySelectorAll('[data-slide]');"
+    "var c=Array.from(ss).findIndex(function(s){return s.style.display!=='none';});"
+    "ss[c].style.display='none';"
+    "ss[(c+1)%ss.length].style.display='block';"
+    "})(this)"
+)
+_BTN_BASE = (
+    "position:absolute;top:50%;transform:translateY(-50%);"
+    "background:rgba(0,0,0,0.55);color:#fff;border:none;border-radius:50%;"
+    "width:34px;height:34px;font-size:22px;line-height:1;cursor:pointer;"
+    "display:flex;align-items:center;justify-content:center;pointer-events:auto;"
+    "transition:background 0.15s;"
+)
+
+
+def _carousel(urls: list) -> str:
+    if not urls:
+        return (
+            '<div style="display:flex;align-items:center;justify-content:center;'
+            'height:100%;color:var(--body-text-color-subdued,#64748b);font-size:13px;">No image</div>'
+        )
+    if len(urls) == 1:
+        return (
+            f'<img src="{urls[0]}" alt="property" '
+            f'style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" />'
+        )
+
+    slides = "".join(
+        f'<img src="{u}" alt="property {i+1}" data-slide '
+        f'style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;'
+        f'display:{"block" if i == 0 else "none"};" />'
+        for i, u in enumerate(urls)
+    )
+    return (
+        f'<div data-carousel style="position:absolute;inset:0;" '
+        f'onmouseenter="this.querySelector(\'[data-arrows]\').style.opacity=\'1\'" '
+        f'onmouseleave="this.querySelector(\'[data-arrows]\').style.opacity=\'0\'">'
+        f'{slides}'
+        f'<div data-arrows style="opacity:0;transition:opacity 0.2s;'
+        f'pointer-events:none;position:absolute;inset:0;">'
+        f'<button onclick="{_PREV_JS}" style="{_BTN_BASE}left:8px;">&#8249;</button>'
+        f'<button onclick="{_NEXT_JS}" style="{_BTN_BASE}right:8px;">&#8250;</button>'
+        f'</div>'
+        f'</div>'
+    )
+
+
 def render_properties(rows) -> str:
     if isinstance(rows, str) and rows.startswith("__error__"):
         detail = rows[len("__error__: "):]
@@ -41,28 +156,52 @@ def render_properties(rows) -> str:
     if not rows:
         return "*No listings found matching the filters.*"
 
-    parts = []
+    cards = []
     for r in rows:
         raw_urls = r.get("image_urls") or ""
         try:
             signed_urls = json.loads(raw_urls) if raw_urls else []
         except Exception:
             signed_urls = [raw_urls] if raw_urls else []
-        img = "\n".join(f"![property]({u})" for u in signed_urls) if signed_urls else "*(no image)*"
-        price_str = f"**Price:** {int(r['price_asking']):,} NIS | " if r.get("price_asking") else ""
-        snippet = (r.get("result") or "")[:300]
-        ellipsis = "…" if len(r.get("result") or "") > 300 else ""
 
-        parts.append(
-            f"### {r.get('property_type', '').title()} — {r.get('location', '')}\n\n"
-            f"{img}\n\n"
-            f"**Rooms:** {r.get('num_rooms', '—')} | "
-            f"**Size:** {r.get('size_sqm', '—')} sqm | "
-            f"{price_str}"
-            f"**Condition:** {r.get('condition', '—')}\n\n"
-            f"**Intent:** {r.get('intent', '—')} | "
-            f"**Recommendation:** `{r.get('recommendation', '—')}`\n\n"
-            f"{snippet}{ellipsis}\n\n---"
+        title = f"{r.get('property_type', '').title()} — {r.get('location', '—')}"
+        price_str = f"{int(r['price_asking']):,} NIS" if r.get("price_asking") else "—"
+
+        sections = _parse_sections(r.get("result") or "")
+        embassy_rec = sections.get("Embassy Recommendation", "")
+        market_ctx  = sections.get("Market Context", "")
+
+        rec_raw = r.get("recommendation") or ""
+
+        card = (
+            f'<div style="border:1px solid var(--border-color-primary,#334155);border-radius:12px;'
+            f'overflow:hidden;margin-bottom:24px;display:flex;min-height:220px;'
+            f'box-shadow:0 2px 8px rgba(0,0,0,0.3);background:var(--background-fill-secondary,#1e293b);'
+            f'font-family:system-ui,-apple-system,sans-serif;">'
+            # left panel — position:relative so carousel can fill it absolutely
+            f'<div style="width:240px;min-width:240px;flex-shrink:0;position:relative;'
+            f'background:var(--background-fill-primary,#0f172a);">'
+            f'{_carousel(signed_urls)}'
+            f'</div>'
+            # right panel
+            f'<div style="flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:6px;overflow:hidden;">'
+            f'<div style="font-size:17px;font-weight:700;color:var(--body-text-color,#f1f5f9);">{title}</div>'
+            f'<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--body-text-color-subdued,#94a3b8);">'
+            f'<span>🛏&nbsp;<strong>{r.get("num_rooms", "—")}</strong> rooms</span>'
+            f'<span>📐&nbsp;<strong>{r.get("size_sqm", "—")}</strong> sqm</span>'
+            f'<span>💰&nbsp;<strong>{price_str}</strong></span>'
+            f'<span>🔧&nbsp;<strong>{(r.get("condition") or "—").title()}</strong></span>'
+            f'</div>'
+            f'<div style="display:flex;gap:12px;align-items:center;font-size:13px;color:var(--body-text-color-subdued,#94a3b8);">'
+            f'<span>Intent:&nbsp;<strong style="color:var(--body-text-color,#f1f5f9);">{(r.get("intent") or "—").title()}</strong></span>'
+            f'{_rec_badge(rec_raw)}'
+            f'</div>'
+            f'<hr style="border:none;border-top:1px solid var(--border-color-primary,#334155);margin:4px 0;" />'
+            f'{_section_block("Embassy Recommendation", embassy_rec)}'
+            f'{_section_block("Market Context", market_ctx)}'
+            f'</div>'
+            f'</div>'
         )
+        cards.append(card)
 
-    return "\n\n".join(parts)
+    return "\n".join(cards)

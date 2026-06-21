@@ -159,7 +159,7 @@ with gr.Blocks(title="AI Property Triage System") as app:
             filter_max_price = gr.Number(label="Max price (NIS)", scale=1, minimum=0)
             refresh_btn      = gr.Button("🔄 Refresh", scale=1)
 
-        properties_display = gr.Markdown("*Click Refresh to load listings.*")
+        properties_display = gr.Markdown("*Click Refresh to load listings.*", sanitize_html=False)
 
         def _load(location, ptype, rooms, price):
             rows = properties_mod.fetch_properties(
