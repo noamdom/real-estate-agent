@@ -4,7 +4,7 @@ import torch
 from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
 
-from labels import CONDITION_PROMPTS, CONDITION_WEIGHTS, ROOM_LABELS, ROOM_TYPES
+from labels import CONDITION_PROMPTS, CONDITION_WEIGHTS, OPEN_LABELS
 
 log = logging.getLogger("image-analyzer")
 
@@ -28,9 +28,9 @@ def _load() -> None:
 def analyse(image: Image.Image) -> dict:
     _load()
 
-    # ── Room type ──────────────────────────────────────────────────────────────
+    # ── Scene classification ───────────────────────────────────────────────────
     inputs = _processor(
-        text=ROOM_LABELS,
+        text=OPEN_LABELS,
         images=image,
         return_tensors="pt",
         padding=True,
@@ -59,7 +59,7 @@ def analyse(image: Image.Image) -> dict:
     )
 
     return {
-        "room_type": ROOM_TYPES[room_idx],
+        "room_type": OPEN_LABELS[room_idx],
         "condition_score": condition_score,
         "confidence": confidence,
     }

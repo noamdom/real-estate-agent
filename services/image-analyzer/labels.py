@@ -1,21 +1,21 @@
-ROOM_LABELS = [
-    "a bedroom with a bed",
-    "a living room with a sofa",
-    "a kitchen with appliances",
-    "a bathroom with a toilet or shower",
-    "a dining room with a dining table",
-    "an exterior view of a house or building",
-    "another type of room or space",
-]
-
-ROOM_TYPES = [
-    "bedroom",
-    "living_room",
-    "kitchen",
-    "bathroom",
-    "dining_room",
-    "exterior",
-    "other",
+OPEN_LABELS = [
+    "a bedroom with a bed and pillows",
+    "a living room or lounge with sofa and furniture",
+    "a kitchen with appliances, sink or cabinets",
+    "a bathroom with toilet, shower or bathtub",
+    "a dining room with table and chairs",
+    "an exterior view of a house, apartment building or residential block",
+    "an outdoor garden, balcony, terrace or yard of a property",
+    "a parking space, garage or driveway",
+    "an office, commercial workspace or meeting room",
+    "a hallway, corridor, staircase or entrance of a building",
+    "a cat, dog, bird or other animal",
+    "a person, people or portrait",
+    "food, beverages or a meal",
+    "a car, motorcycle, truck or other vehicle",
+    "a natural landscape, forest, field or park without buildings",
+    "a document, screen, phone or piece of paper",
+    "an unidentifiable or random object",
 ]
 
 CONDITION_PROMPTS = [

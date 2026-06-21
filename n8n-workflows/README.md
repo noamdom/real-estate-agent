@@ -22,37 +22,43 @@ User Submit  (Webhook POST /property-intake)
   Input Valid?  ──── false ──────────────► Update row (rejected)
          │ true
          ▼
-  LangGraph Analyze                        → POST :9000/analyze  (60 s timeout)
-  ├─ error ──────────────────────────────► Update row (processing error)
-  └─ main
-         ▼
-  Update row (LangGraph)                   → Google Sheets: intent, confidence, recommendation
-         │
-         ▼
   Has Image File?
-  ├─ false ──────────────────────────────► Route Response
-  └─ true
-         ▼
-  Prepare Image JSON                       → normalise binary slots (up to 5 files)
-         │
-         ▼
-  Call Image Analyser                      → POST :9002/analyse  (multipart, up to 5 images)
-         │
-         ▼
-  Update row (image data)                  → Google Sheets: image_urls, image_analysis
-         │
-         ▼
-  Route Response                           → Code: merge LangGraph + image results
-         │
-         ▼
-  Guardrails Output Check                  → POST :9001/check/output  (30 s timeout)
-  ├─ error ──────────────────────────────► Update row (processing error)
-  └─ main
-         ▼
-  Update row(s)                            → Google Sheets: status (done / flagged / rejected),
-         │                                   full result, recommendation, confidence
-         ▼
-  No Operation, do nothing
+  ├─ false ──────────────────────────────────────────────────────────────────────┐
+  └─ true                                                                        │
+         ▼                                                                       │
+  Prepare Image JSON                       → normalise binary slots (up to 5)   │
+         │                                                                       │
+         ▼                                                                       │
+  Call Image Analyser                      → POST :9002/analyse  (multipart)    │
+         │                                                                       │
+         ▼                                                                       │
+  Parse Image JSON                         → extract image_analysis[] + URLs    │
+         │                                                                       │
+         └───────────────────────────────────────────────────────────────────────┘
+                                                       │
+                                                       ▼
+                                          Build LangGraph Body  → merge webhook fields
+                                                       │           + image_analysis array
+                                                       ▼
+                                          LangGraph Analyze     → POST :9000/analyze (60 s)
+                                          ├─ error ────────────► Update row (processing error)
+                                          └─ main
+                                                       │
+                                                       ▼
+                                          Route Response        → Code: format fields,
+                                                       │           build guardrails_text
+                                                       ▼
+                                          Guardrails Output Check → POST :9001/check/output
+                                          ├─ error ────────────► Update row (processing error)
+                                          └─ main
+                                                       │
+                                                       ▼
+                                          Update row(s)         → Google Sheets: single final write
+                                                       │           (status, team, deal_score,
+                                                       │            estimated_price, analysis,
+                                                       │            recommendation, image_*)
+                                                       ▼
+                                          No Operation, do nothing
 ```
 
 ---
@@ -77,12 +83,17 @@ User Submit  (Webhook POST /property-intake)
   | `num_rooms` | number of rooms |
   | `agent_name` | submitting agent |
   | `description` | free-text description |
-  | `image_urls` | JSON array of S3 URLs |
-  | `image_analysis` | Vision summary string |
-  | `recommendation` | PASS / REJECT / REVIEW |
-  | `confidence` | float 0–1 |
-  | `result` | full formatted embassy recommendation |
+  | `image_urls` | JSON array of S3 URLs (flattened from all rooms) |
+  | `image_analysis` | JSON array of `{room_type, condition_score, confidence}` objects |
+  | `team` | `residential` / `commercial` / `unknown` |
+  | `deal_score` | float 0–10 (additive signal score from pricing_node) |
+  | `estimated_price` | market price estimate from comp data (null if < 2 comps) |
+  | `confidence` | float 0–1 (field completeness score) |
+  | `analysis` | JSON string of the full analysis object: `{market_context, property_assessment, pricing_opinion, recommendation, expected_timeline, image_summary}`. For rejected/error rows contains `{"error": "..."}`. |
   | `completed_at` | ISO timestamp of completion |
+
+- The column order in the sheet must be exactly: `job_id, submitted_at, status, property_type, intent, location, condition, price_asking, size_sqm, num_rooms, agent_name, description, image_urls, image_analysis, team, deal_score, estimated_price, confidence, analysis, completed_at`
+- `recommendation` and `result` columns are no longer used — remove them from the sheet if present.
 
 - The workflow targets document ID `1MTmu5zOxU9FkOcH9jWvM2-KfPcI3OzDmsIAjPZszX9o`, sheet ID `1408573048`. Update both values in every Google Sheets node after import if using a different sheet.
 

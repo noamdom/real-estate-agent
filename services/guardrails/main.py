@@ -55,13 +55,44 @@ Return pass=true only if the text is a genuine property listing (description, lo
 Return pass=false for:
   - Spam or advertisements ("buy cheap watches", "make money fast")
   - Off-topic content ("what's the weather", "tell me a joke")
-  - Discriminatory or harmful content
+  - Discriminatory or harmful content — including ANY restriction on buyers or tenants based on
+    religion, ethnicity, nationality, gender, age, or any other protected characteristic,
+    whether stated directly or indirectly (e.g. "specific religious background", "preferred community",
+    "suitable for families of a certain background", "only for [group]")
   - Empty or nonsensical text
 
 Examples of VALID listings:
   "3 bedroom apartment in Tel Aviv Florentin, 85sqm, asking 3M NIS, renovated kitchen"
   "Villa in Jerusalem Rehavia, 290sqm, private garden, asking 10M NIS"
   "Commercial office 500sqm Herzliya, monthly rental"
+
+Examples of INVALID listings (discriminatory — even when property details are otherwise valid):
+  "4-room apartment Rehavia 120sqm. Seller will only consider buyers of a specific religious background."
+  "Beautiful villa, only selling to buyers from our community. Others need not apply."
+  "Apartment for rent, suitable for families of the preferred background only."
+  "3 rooms Tel Aviv, will not rent to certain nationalities."
+
+Respond ONLY with the JSON object. No explanation outside JSON."""
+
+IMAGE_LABEL_SYSTEM = """You are a guardrail for a real estate image submission system.
+You receive one or more image labels returned by a computer vision model, as a comma-separated string.
+Classify the labels and return a JSON object with exactly these keys:
+  "pass": true or false
+  "reason": a short explanation if pass is false, otherwise null
+
+Return pass=true if ALL labels describe real estate or property-related content:
+  - Interior spaces: bedroom, living room, kitchen, bathroom, dining room, hallway, corridor, staircase
+  - Exterior spaces: building exterior, garden, yard, balcony, terrace, parking, garage, driveway
+  - Commercial spaces: office, workspace, meeting room, retail space
+
+Return pass=false if ANY label describes content unrelated to property:
+  - Animals (cat, dog, bird, any pet or wildlife)
+  - People or portraits
+  - Food or beverages
+  - Vehicles (car, motorcycle, truck)
+  - Natural landscapes without buildings
+  - Documents, screens or phones
+  - Random or unidentifiable objects
 
 Respond ONLY with the JSON object. No explanation outside JSON."""
 
@@ -118,6 +149,22 @@ def check_input(body: TextInput):
         return result
     except Exception as exc:
         log.error("[input]  error: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@server.post("/check/image-label")
+def check_image_label(body: TextInput):
+    """Validate that image labels are property-related."""
+    if not body.text or not body.text.strip():
+        return {"pass": False, "reason": "Empty label."}
+
+    log.info("[image-label] checking labels: %s", body.text)
+    try:
+        result = _classify(IMAGE_LABEL_SYSTEM, body.text)
+        log.info("[image-label] pass=%s  reason=%s", result.get("pass"), result.get("reason"))
+        return result
+    except Exception as exc:
+        log.error("[image-label] error: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 

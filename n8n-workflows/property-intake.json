@@ -221,8 +221,30 @@
               "removed": true
             },
             {
-              "id": "recommendation",
-              "displayName": "recommendation",
+              "id": "team",
+              "displayName": "team",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "deal_score",
+              "displayName": "deal_score",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "estimated_price",
+              "displayName": "estimated_price",
               "required": false,
               "defaultMatch": false,
               "canBeUsedToMatch": true,
@@ -243,8 +265,8 @@
               "removed": true
             },
             {
-              "id": "result",
-              "displayName": "result",
+              "id": "analysis",
+              "displayName": "analysis",
               "required": false,
               "defaultMatch": false,
               "canBeUsedToMatch": true,
@@ -356,7 +378,7 @@
           "value": {
             "job_id": "={{ $('Insert row').first().json.job_id }}",
             "status": "rejected",
-            "result": "={{ '\u274c Submission rejected: ' + $('Guardrails Input Check').first().json.reason }}",
+            "analysis": "={{ JSON.stringify({ error: '❌ Submission rejected: ' + $('Guardrails Input Check').first().json.reason }) }}",
             "completed_at": "={{ $now.toISO() }}"
           },
           "matchingColumns": [
@@ -518,8 +540,30 @@
               "removed": true
             },
             {
-              "id": "recommendation",
-              "displayName": "recommendation",
+              "id": "team",
+              "displayName": "team",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "deal_score",
+              "displayName": "deal_score",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "estimated_price",
+              "displayName": "estimated_price",
               "required": false,
               "defaultMatch": false,
               "canBeUsedToMatch": true,
@@ -540,8 +584,8 @@
               "removed": true
             },
             {
-              "id": "result",
-              "displayName": "result",
+              "id": "analysis",
+              "displayName": "analysis",
               "required": false,
               "defaultMatch": false,
               "canBeUsedToMatch": true,
@@ -584,27 +628,6 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "http://host.docker.internal:9000/analyze",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify($('User Submit').first().json.body) }}",
-        "options": {
-          "timeout": 60000
-        }
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        1328,
-        3456
-      ],
-      "id": "8b8d383d-8afd-4cf6-a95e-d809bcc23ad8",
-      "name": "LangGraph Analyze",
-      "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
@@ -630,1016 +653,20 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1776,
-        3392
+        1328,
+        3456
       ],
       "id": "2af40385-1284-40e5-bed9-10916524b628",
       "name": "Has Image File?"
     },
     {
       "parameters": {
-        "jsCode": "const langResult = $('LangGraph Analyze').first().json;\nconst job_id = $('Insert row').first().json.job_id;\n\nlet imageAnalysis = '';\nlet imageUrls = '';\n\ntry {\n  const img = $('Call Image Analyser').first().json;\n  imageUrls = JSON.stringify(img.image_urls || []);\n  imageAnalysis = img.room_type\n    ? 'Room: ' + img.room_type + ' | Condition: ' + img.condition_score + '/1.0 | Confidence: ' + Math.round(img.confidence * 100) + '%'\n    : '';\n} catch (e) {}\n\nlet result;\nif (langResult.status === 'incomplete') {\n  result = langResult.clarification_message || 'Submission incomplete \u2014 missing fields: ' + (langResult.missing_fields || []).join(', ');\n} else {\n  const a = langResult.analysis || {};\n  result = [\n    '**Embassy Recommendation:** ' + (a.recommendation || 'N/A'),\n    '',\n    '**Market Context:** ' + (a.market_context || ''),\n    '',\n    '**Property Assessment:** ' + (a.property_assessment || ''),\n    '',\n    '**Pricing Opinion:** ' + (a.pricing_opinion || ''),\n    '',\n    '**Expected Timeline:** ' + (a.expected_timeline || ''),\n  ].join('\\n');\n  if (imageAnalysis) {\n    result += '\\n\\n**Image Analysis:** ' + imageAnalysis;\n  }\n}\n\nreturn [{ json: {\n  job_id,\n  result,\n  status: langResult.status,\n  intent: langResult.intent,\n  confidence: langResult.confidence || 0,\n  recommendation: (langResult.analysis || {}).recommendation || 'PASS',\n  image_urls: imageUrls,\n  image_analysis: imageAnalysis,\n} }];"
+        "jsCode": "const userItem  = $('User Submit').first();\nconst binary     = userItem.binary || {};\nconst jobId      = $('Insert row').first().json.job_id;\nconst actualKeys = Object.keys(binary).filter(k => k.startsWith('file')).sort();\nconst MAX_FILES  = 5;\n\nconst outBinary = {};\nfor (let i = 0; i < MAX_FILES; i++) {\n  const src = actualKeys[Math.min(i, actualKeys.length - 1)];\n  outBinary[`file${i}`] = binary[src];\n}\n\nreturn [{ json: { job_id: jobId, file_count: actualKeys.length }, binary: outBinary }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        2672,
-        3392
-      ],
-      "id": "3f12b057-ad72-434b-acb0-038f743b1ae1",
-      "name": "Route Response"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "http://host.docker.internal:9001/check/output",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ text: $('Route Response').first().json.result }) }}",
-        "options": {
-          "timeout": 30000
-        }
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        2896,
-        3392
-      ],
-      "id": "f02f2c6c-5cee-4ee4-aa47-c61eff6ead93",
-      "name": "Guardrails Output Check",
-      "onError": "continueErrorOutput"
-    },
-    {
-      "parameters": {
-        "operation": "update",
-        "documentId": {
-          "__rl": true,
-          "value": "1MTmu5zOxU9FkOcH9jWvM2-KfPcI3OzDmsIAjPZszX9o",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "1408573048",
-          "mode": "id"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "job_id": "={{ $('Route Response').first().json.job_id }}",
-            "status": "={{ $('Route Response').first().json.status === 'incomplete' ? 'rejected' : ($('Guardrails Output Check').first().json.flagged ? 'flagged' : 'done') }}",
-            "result": "={{ $('Route Response').first().json.result }}",
-            "recommendation": "={{ $('Route Response').first().json.recommendation }}",
-            "confidence": "={{ $('Route Response').first().json.confidence }}",
-            "intent": "={{ $('Route Response').first().json.intent }}",
-            "image_urls": "={{ $('Route Response').first().json.image_urls }}",
-            "image_analysis": "={{ $('Route Response').first().json.image_analysis }}",
-            "completed_at": "={{ $now.toISO() }}"
-          },
-          "matchingColumns": [
-            "job_id"
-          ],
-          "schema": [
-            {
-              "id": "job_id",
-              "displayName": "job_id",
-              "required": false,
-              "defaultMatch": true,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "submitted_at",
-              "displayName": "submitted_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "property_type",
-              "displayName": "property_type",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "intent",
-              "displayName": "intent",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "location",
-              "displayName": "location",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "condition",
-              "displayName": "condition",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "price_asking",
-              "displayName": "price_asking",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "size_sqm",
-              "displayName": "size_sqm",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "num_rooms",
-              "displayName": "num_rooms",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "agent_name",
-              "displayName": "agent_name",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "description",
-              "displayName": "description",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": true
-            },
-            {
-              "id": "image_urls",
-              "displayName": "image_urls",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "image_analysis",
-              "displayName": "image_analysis",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "recommendation",
-              "displayName": "recommendation",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "confidence",
-              "displayName": "confidence",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "result",
-              "displayName": "result",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "completed_at",
-              "displayName": "completed_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "row_number",
-              "displayName": "row_number",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "number",
-              "canBeUsedToMatch": true,
-              "readOnly": true,
-              "removed": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": true
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        3120,
-        3344
-      ],
-      "id": "bfd34ad0-375a-4bdf-a153-0d4798538131",
-      "name": "Update row(s)",
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "NVCbUAzpz0pLqUkG",
-          "name": "Google Sheets account"
-        }
-      }
-    },
-    {
-      "parameters": {},
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        3344,
-        3344
-      ],
-      "id": "6d1e5847-c68a-4b56-8aa9-a066bc460274",
-      "name": "No Operation, do nothing"
-    },
-    {
-      "parameters": {
-        "operation": "update",
-        "documentId": {
-          "__rl": true,
-          "value": "1MTmu5zOxU9FkOcH9jWvM2-KfPcI3OzDmsIAjPZszX9o",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "1408573048",
-          "mode": "id"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "job_id": "={{ $('Insert row').first().json.job_id }}",
-            "status": "rejected",
-            "result": "={{ '\u274c Processing error: ' + ($input.first().json.error?.message || $input.first().json.message || 'Service unavailable \u2014 please resubmit') }}",
-            "completed_at": "={{ $now.toISO() }}"
-          },
-          "matchingColumns": [
-            "job_id"
-          ],
-          "schema": [
-            {
-              "id": "job_id",
-              "displayName": "job_id",
-              "required": false,
-              "defaultMatch": true,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "submitted_at",
-              "displayName": "submitted_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "property_type",
-              "displayName": "property_type",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "intent",
-              "displayName": "intent",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "location",
-              "displayName": "location",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "condition",
-              "displayName": "condition",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "price_asking",
-              "displayName": "price_asking",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "size_sqm",
-              "displayName": "size_sqm",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "num_rooms",
-              "displayName": "num_rooms",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "agent_name",
-              "displayName": "agent_name",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "description",
-              "displayName": "description",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "image_urls",
-              "displayName": "image_urls",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "image_analysis",
-              "displayName": "image_analysis",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "recommendation",
-              "displayName": "recommendation",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "confidence",
-              "displayName": "confidence",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "result",
-              "displayName": "result",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "completed_at",
-              "displayName": "completed_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "row_number",
-              "displayName": "row_number",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "number",
-              "canBeUsedToMatch": true,
-              "readOnly": true,
-              "removed": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        3120,
-        3552
-      ],
-      "id": "0eeda859-1d78-45bf-b0fd-c4b716116a99",
-      "name": "Update row (processing error)",
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "NVCbUAzpz0pLqUkG",
-          "name": "Google Sheets account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "update",
-        "documentId": {
-          "__rl": true,
-          "value": "1MTmu5zOxU9FkOcH9jWvM2-KfPcI3OzDmsIAjPZszX9o",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "1408573048",
-          "mode": "id"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "job_id": "={{ $('Insert row').first().json.job_id }}",
-            "intent": "={{ $('LangGraph Analyze').first().json.intent }}",
-            "confidence": "={{ $('LangGraph Analyze').first().json.confidence }}",
-            "recommendation": "={{ ($('LangGraph Analyze').first().json.analysis || {}).recommendation || '' }}"
-          },
-          "matchingColumns": [
-            "job_id"
-          ],
-          "schema": [
-            {
-              "id": "job_id",
-              "displayName": "job_id",
-              "required": false,
-              "defaultMatch": true,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "submitted_at",
-              "displayName": "submitted_at",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "property_type",
-              "displayName": "property_type",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "intent",
-              "displayName": "intent",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "location",
-              "displayName": "location",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "condition",
-              "displayName": "condition",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "price_asking",
-              "displayName": "price_asking",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "size_sqm",
-              "displayName": "size_sqm",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "num_rooms",
-              "displayName": "num_rooms",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "agent_name",
-              "displayName": "agent_name",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "description",
-              "displayName": "description",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "image_urls",
-              "displayName": "image_urls",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "image_analysis",
-              "displayName": "image_analysis",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "recommendation",
-              "displayName": "recommendation",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "confidence",
-              "displayName": "confidence",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "result",
-              "displayName": "result",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "completed_at",
-              "displayName": "completed_at",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": true
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
       "position": [
         1552,
-        3392
-      ],
-      "id": "b9f62632-c50d-4e86-8b68-4b6c2b8c2c66",
-      "name": "Update row (LangGraph)",
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "NVCbUAzpz0pLqUkG",
-          "name": "Google Sheets account"
-        }
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "operation": "update",
-        "documentId": {
-          "__rl": true,
-          "value": "1MTmu5zOxU9FkOcH9jWvM2-KfPcI3OzDmsIAjPZszX9o",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": "1408573048",
-          "mode": "id"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "job_id": "={{ $('Insert row').first().json.job_id }}",
-            "image_urls": "={{ JSON.stringify($json.image_urls || []) }}",
-            "image_analysis": "={{ $json.room_type ? 'Room: ' + $json.room_type + ' | Condition: ' + $json.condition_score + '/1.0 | Confidence: ' + Math.round($json.confidence * 100) + '%' : '' }}"
-          },
-          "matchingColumns": [
-            "job_id"
-          ],
-          "schema": [
-            {
-              "id": "job_id",
-              "displayName": "job_id",
-              "required": false,
-              "defaultMatch": true,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "submitted_at",
-              "displayName": "submitted_at",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "property_type",
-              "displayName": "property_type",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "intent",
-              "displayName": "intent",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "location",
-              "displayName": "location",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "condition",
-              "displayName": "condition",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "price_asking",
-              "displayName": "price_asking",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "size_sqm",
-              "displayName": "size_sqm",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "num_rooms",
-              "displayName": "num_rooms",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "agent_name",
-              "displayName": "agent_name",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "description",
-              "displayName": "description",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "image_urls",
-              "displayName": "image_urls",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "image_analysis",
-              "displayName": "image_analysis",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": false
-            },
-            {
-              "id": "recommendation",
-              "displayName": "recommendation",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "confidence",
-              "displayName": "confidence",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "result",
-              "displayName": "result",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            },
-            {
-              "id": "completed_at",
-              "displayName": "completed_at",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": true,
-              "display": true,
-              "type": "string",
-              "readOnly": false,
-              "removed": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": true
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        2448,
-        3312
-      ],
-      "id": "13d4481f-53ef-4bba-9830-8994f1f5c300",
-      "name": "Update row (image data)",
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "NVCbUAzpz0pLqUkG",
-          "name": "Google Sheets account"
-        }
-      },
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "const userItem  = $('User Submit').first();\nconst binary     = userItem.binary || {};\nconst jobId      = $('Insert row').first().json.job_id;\nconst actualKeys = Object.keys(binary).filter(k => k.startsWith('file')).sort();\nconst MAX_FILES  = 5;\n\n// Pad slots so formBinaryData params never reference a missing key\nconst outBinary = {};\nfor (let i = 0; i < MAX_FILES; i++) {\n  const src = actualKeys[Math.min(i, actualKeys.length - 1)];\n  outBinary[`file${i}`] = binary[src];\n}\n\nreturn [{ json: { job_id: jobId, file_count: actualKeys.length }, binary: outBinary }];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1900,
         3312
       ],
       "id": "prepare-img-json-0001-0001-0001",
@@ -1697,12 +724,925 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2150,
+        1776,
         3312
       ],
       "id": "call-analyser-0001-0001-0001-callimg01",
       "name": "Call Image Analyser",
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Image analyser returns an array of room objects, each containing image_urls.\n// Extract the structured image_analysis array and flatten all S3 URLs.\nconst response = $input.first().json;\nconst items = Array.isArray(response) ? response : [response];\n\nconst imageAnalysis = items.map(item => ({\n  room_type:       (item.room_type || 'other').toLowerCase(),\n  condition_score: Number(item.condition_score) || 0.0,\n  confidence:      Number(item.confidence)      || 0.0,\n}));\n\nconst imageUrls = items.flatMap(item => item.image_urls || []);\n\nreturn [{ json: { image_analysis: imageAnalysis, image_urls: imageUrls } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        3312
+      ],
+      "id": "parse-img-json-0002-0001-0001",
+      "name": "Parse Image JSON",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1MTmu5zOxU9FkOcH9jWvM2-KfPcI3OzDmsIAjPZszX9o",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "1408573048",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_id": "={{ $('Insert row').first().json.job_id }}",
+            "status": "rejected",
+            "image_urls": "={{ JSON.stringify($('Parse Image JSON').first().json.image_urls) }}",
+            "analysis": "={{ JSON.stringify({ error: '❌ Image rejected: uploaded images do not appear to be property photos. ' + ($('Image Label Guardrail').first().json.reason || 'Non-property content detected.') + ' Labels detected: ' + $('Parse Image JSON').first().json.image_analysis.map(i => i.room_type).join(', ') }) }}",
+            "completed_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "job_id"
+          ],
+          "schema": [
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": true,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "submitted_at",
+              "displayName": "submitted_at",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "property_type",
+              "displayName": "property_type",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "intent",
+              "displayName": "intent",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "condition",
+              "displayName": "condition",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "price_asking",
+              "displayName": "price_asking",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "size_sqm",
+              "displayName": "size_sqm",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "num_rooms",
+              "displayName": "num_rooms",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "agent_name",
+              "displayName": "agent_name",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "image_urls",
+              "displayName": "image_urls",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "image_analysis",
+              "displayName": "image_analysis",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "team",
+              "displayName": "team",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "deal_score",
+              "displayName": "deal_score",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "estimated_price",
+              "displayName": "estimated_price",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "analysis",
+              "displayName": "analysis",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2448,
+        3168
+      ],
+      "id": "img-rejected-0001-0001-0001",
+      "name": "Update row (image rejected)",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "NVCbUAzpz0pLqUkG",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge image data (image path) with the original webhook body.\n// Falls back to empty image_analysis when no images were submitted.\nlet imageAnalysis = [];\nlet imageUrls = '[]';\ntry {\n  const img = $('Parse Image JSON').first().json;\n  imageAnalysis = img.image_analysis || [];\n  imageUrls = JSON.stringify(img.image_urls || []);\n} catch(e) {}\n\nconst body = $('User Submit').first().json.body || {};\n\nreturn [{ json: {\n  property_type:  body.property_type || null,\n  location:       body.location       || null,\n  description:    body.description    || null,\n  agent_name:     body.agent_name     || null,\n  price_asking:   body.price_asking   != null ? Number(body.price_asking) : null,\n  size_sqm:       body.size_sqm       != null ? Number(body.size_sqm)     : null,\n  num_rooms:      body.num_rooms      != null ? Number(body.num_rooms)    : null,\n  condition:      body.condition      || null,\n  intent:         body.intent         || null,\n  image_analysis: imageAnalysis,\n  _image_urls:    imageUrls,\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2448,
+        3456
+      ],
+      "id": "build-lg-body-0001-0001-0001",
+      "name": "Build LangGraph Body"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9000/analyze",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ property_type: $json.property_type, location: $json.location, description: $json.description, agent_name: $json.agent_name, price_asking: $json.price_asking, size_sqm: $json.size_sqm, num_rooms: $json.num_rooms, condition: $json.condition, intent: $json.intent, image_analysis: $json.image_analysis }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2672,
+        3456
+      ],
+      "id": "8b8d383d-8afd-4cf6-a95e-d809bcc23ad8",
+      "name": "LangGraph Analyze",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const lg        = $('LangGraph Analyze').first().json;\nconst buildBody = $('Build LangGraph Body').first().json;\nconst jobId     = $('Insert row').first().json.job_id;\n\nconst analysis  = lg.analysis  || {};\nconst imageUrls = buildBody._image_urls || '[]';\n\n// Text fed to guardrails output check — fields most likely to carry false claims.\nconst guardrailsText = [\n  analysis.market_context,\n  analysis.pricing_opinion,\n  analysis.recommendation,\n].filter(Boolean).join('\\n\\n');\n\nreturn [{ json: {\n  job_id:          jobId,\n  lg_status:       lg.status,\n  intent:          lg.intent,\n  confidence:      lg.confidence || 0,\n  team:            lg.team       || 'unknown',\n  deal_score:      lg.deal_score || 0,\n  estimated_price: lg.estimated_price || null,\n  image_analysis:  JSON.stringify(lg.image_analysis || []),\n  image_urls:      imageUrls,\n  analysis:        JSON.stringify(analysis),\n  guardrails_text: guardrailsText,\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2896,
+        3456
+      ],
+      "id": "3f12b057-ad72-434b-acb0-038f743b1ae1",
+      "name": "Route Response"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9001/check/output",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $('Route Response').first().json.guardrails_text }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3120,
+        3456
+      ],
+      "id": "f02f2c6c-5cee-4ee4-aa47-c61eff6ead93",
+      "name": "Guardrails Output Check",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1MTmu5zOxU9FkOcH9jWvM2-KfPcI3OzDmsIAjPZszX9o",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "1408573048",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_id": "={{ $('Route Response').first().json.job_id }}",
+            "status": "={{ $('Route Response').first().json.lg_status === 'incomplete' ? 'rejected' : ($('Guardrails Output Check').first().json.flagged ? 'flagged' : 'done') }}",
+            "intent": "={{ $('Route Response').first().json.intent }}",
+            "confidence": "={{ $('Route Response').first().json.confidence }}",
+            "team": "={{ $('Route Response').first().json.team }}",
+            "deal_score": "={{ $('Route Response').first().json.deal_score }}",
+            "estimated_price": "={{ $('Route Response').first().json.estimated_price }}",
+            "image_urls": "={{ $('Route Response').first().json.image_urls }}",
+            "image_analysis": "={{ $('Route Response').first().json.image_analysis }}",
+            "analysis": "={{ $('Route Response').first().json.analysis }}",
+            "completed_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "job_id"
+          ],
+          "schema": [
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "submitted_at",
+              "displayName": "submitted_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "property_type",
+              "displayName": "property_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "intent",
+              "displayName": "intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "condition",
+              "displayName": "condition",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "price_asking",
+              "displayName": "price_asking",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "size_sqm",
+              "displayName": "size_sqm",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "num_rooms",
+              "displayName": "num_rooms",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "agent_name",
+              "displayName": "agent_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "image_urls",
+              "displayName": "image_urls",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "image_analysis",
+              "displayName": "image_analysis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "team",
+              "displayName": "team",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "deal_score",
+              "displayName": "deal_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "estimated_price",
+              "displayName": "estimated_price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "analysis",
+              "displayName": "analysis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3344,
+        3344
+      ],
+      "id": "bfd34ad0-375a-4bdf-a153-0d4798538131",
+      "name": "Update row(s)",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "NVCbUAzpz0pLqUkG",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3568,
+        3344
+      ],
+      "id": "6d1e5847-c68a-4b56-8aa9-a066bc460274",
+      "name": "No Operation, do nothing"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1MTmu5zOxU9FkOcH9jWvM2-KfPcI3OzDmsIAjPZszX9o",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "1408573048",
+          "mode": "id"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "job_id": "={{ $('Insert row').first().json.job_id }}",
+            "status": "rejected",
+            "analysis": "={{ JSON.stringify({ error: '❌ Processing error: ' + ($input.first().json.error?.message || $input.first().json.message || 'Service unavailable — please resubmit') }) }}",
+            "completed_at": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "job_id"
+          ],
+          "schema": [
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "submitted_at",
+              "displayName": "submitted_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "property_type",
+              "displayName": "property_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "intent",
+              "displayName": "intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "condition",
+              "displayName": "condition",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "price_asking",
+              "displayName": "price_asking",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "size_sqm",
+              "displayName": "size_sqm",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "num_rooms",
+              "displayName": "num_rooms",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "agent_name",
+              "displayName": "agent_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "image_urls",
+              "displayName": "image_urls",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "image_analysis",
+              "displayName": "image_analysis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "team",
+              "displayName": "team",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "deal_score",
+              "displayName": "deal_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "estimated_price",
+              "displayName": "estimated_price",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "analysis",
+              "displayName": "analysis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        3344,
+        3648
+      ],
+      "id": "0eeda859-1d78-45bf-b0fd-c4b716116a99",
+      "name": "Update row (processing error)",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "NVCbUAzpz0pLqUkG",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9001/check/image-label",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $('Parse Image JSON').first().json.image_analysis.map(img => img.room_type).join(', ') }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2224,
+        3312
+      ],
+      "id": "img-label-guardrail-http-0001",
+      "name": "Image Label Guardrail",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "label-pass",
+              "leftValue": "={{ $json.pass }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2448,
+        3312
+      ],
+      "id": "img-label-valid-0001-0001-0002",
+      "name": "Image Labels Valid?"
     }
   ],
   "pinData": {},
@@ -1749,7 +1689,7 @@
       "main": [
         [
           {
-            "node": "LangGraph Analyze",
+            "node": "Has Image File?",
             "type": "main",
             "index": 0
           }
@@ -1757,35 +1697,6 @@
         [
           {
             "node": "Update row (rejected)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "LangGraph Analyze": {
-      "main": [
-        [
-          {
-            "node": "Update row (LangGraph)",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Update row (processing error)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Update row (LangGraph)": {
-      "main": [
-        [
-          {
-            "node": "Has Image File?",
             "type": "main",
             "index": 0
           }
@@ -1803,18 +1714,69 @@
         ],
         [
           {
-            "node": "Route Response",
+            "node": "Build LangGraph Body",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Update row (image data)": {
+    "Prepare Image JSON": {
+      "main": [
+        [
+          {
+            "node": "Call Image Analyser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Image Analyser": {
+      "main": [
+        [
+          {
+            "node": "Parse Image JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Image JSON": {
+      "main": [
+        [
+          {
+            "node": "Image Label Guardrail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build LangGraph Body": {
+      "main": [
+        [
+          {
+            "node": "LangGraph Analyze",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LangGraph Analyze": {
       "main": [
         [
           {
             "node": "Route Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update row (processing error)",
             "type": "main",
             "index": 0
           }
@@ -1861,22 +1823,36 @@
         ]
       ]
     },
-    "Prepare Image JSON": {
+    "Image Label Guardrail": {
       "main": [
         [
           {
-            "node": "Call Image Analyser",
+            "node": "Image Labels Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update row (processing error)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Call Image Analyser": {
+    "Image Labels Valid?": {
       "main": [
         [
           {
-            "node": "Update row (image data)",
+            "node": "Build LangGraph Body",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update row (image rejected)",
             "type": "main",
             "index": 0
           }
