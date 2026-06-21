@@ -65,6 +65,20 @@ def get_properties(
     return [_presign_images(r) for r in rows]
 
 
+@router.get("/job/{job_id}")
+def get_job(job_id: str):
+    logger.info("GET /job/%s", job_id)
+    try:
+        rows = _get_sheet().get_all_records()
+    except Exception as e:
+        logger.exception("Sheet read failed")
+        raise HTTPException(status_code=500, detail=f"Sheet read failed: {e}")
+    for r in rows:
+        if str(r.get("job_id")) == str(job_id):
+            return _presign_images(r)
+    raise HTTPException(status_code=404, detail=f"Job {job_id!r} not found")
+
+
 def _presign_images(row: dict) -> dict:
     raw = row.get("image_urls") or ""
     if not raw:
