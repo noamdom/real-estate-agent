@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Optional
+from typing import Optional, List
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -15,7 +15,7 @@ from properties_router import router as properties_router  # noqa: E402
 
 log = logging.getLogger("langgraph")
 
-server = FastAPI(title="LangGraph Property Analysis Service", version="1.0.0")
+server = FastAPI(title="LangGraph Property Analysis Service", version="2.0.0")
 server.include_router(properties_router)
 
 
@@ -34,16 +34,23 @@ def _log_key_info() -> None:
         log.info("PINECONE_API_KEY loaded: %s...%s", pinecone_key[:6], pinecone_key[-4:])
 
 
+class ImageAnalysisItem(BaseModel):
+    room_type:       str
+    condition_score: float
+    confidence:      float
+
+
 class SubmissionPayload(BaseModel):
-    property_type: Optional[str] = None
-    location: Optional[str] = None
-    description: Optional[str] = None
-    agent_name: Optional[str] = None
-    price_asking: Optional[float] = None
-    size_sqm: Optional[float] = None
-    num_rooms: Optional[int] = None
-    condition: Optional[str] = None
-    intent: Optional[str] = None  # caller may supply "sell" | "rent" directly
+    property_type:  Optional[str]   = None
+    location:       Optional[str]   = None
+    description:    Optional[str]   = None
+    agent_name:     Optional[str]   = None
+    price_asking:   Optional[float] = None
+    size_sqm:       Optional[float] = None
+    num_rooms:      Optional[int]   = None
+    condition:      Optional[str]   = None
+    intent:         Optional[str]   = None
+    image_analysis: List[ImageAnalysisItem] = []
 
 
 @server.get("/health")
@@ -54,15 +61,21 @@ def health():
 @server.post("/analyze")
 def analyze(payload: SubmissionPayload):
     initial_state = {
-        "raw_payload": payload.model_dump(),
-        "normalized": None,
-        "intent": None,
-        "confidence": None,
+        "raw_payload":    {
+            **payload.model_dump(exclude={"image_analysis"}),
+            "image_analysis": [img.model_dump() for img in payload.image_analysis],
+        },
+        "normalized":     None,
+        "image_analysis": [],
+        "intent":         None,
+        "confidence":     None,
         "missing_fields": [],
-        "rag_comps": [],
-        "clarification_message": None,
-        "analysis": None,
-        "status": None,
+        "rag_comps":      [],
+        "estimated_price": None,
+        "deal_score":     0.0,
+        "team":           None,
+        "analysis":       None,
+        "status":         None,
     }
 
     try:
@@ -71,12 +84,14 @@ def analyze(payload: SubmissionPayload):
         raise HTTPException(status_code=500, detail=str(exc))
 
     return {
-        "intent": result.get("intent"),
-        "confidence": result.get("confidence"),
-        "status": result.get("status"),
-        "normalized": result.get("normalized"),
-        "rag_comps": result.get("rag_comps", []),
-        "analysis": result.get("analysis"),
+        "intent":         result.get("intent"),
+        "confidence":     result.get("confidence"),
+        "status":         result.get("status"),
+        "team":           result.get("team"),
+        "deal_score":     result.get("deal_score"),
+        "estimated_price": result.get("estimated_price"),
+        "normalized":     result.get("normalized"),
+        "image_analysis": result.get("image_analysis", []),
+        "analysis":       result.get("analysis"),
         "missing_fields": result.get("missing_fields", []),
-        "clarification_message": result.get("clarification_message"),
     }
