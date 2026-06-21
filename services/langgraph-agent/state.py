@@ -13,6 +13,12 @@ class NormalizedFields(TypedDict):
     agent_name: Optional[str]
 
 
+class ImageResult(TypedDict):
+    room_type: str        # "kitchen" | "bedroom" | "bathroom" | "living_room" | "exterior" | "other"
+    condition_score: float  # 0.0–1.0
+    confidence: float       # model classification confidence 0.0–1.0
+
+
 class RagComp(TypedDict):
     id: str
     location: str
@@ -26,8 +32,9 @@ class Analysis(TypedDict):
     market_context: str
     property_assessment: str
     pricing_opinion: str
-    recommendation: str
+    recommendation: str   # "NEGOTIATE — 8% above comp avg" | "BUY" | "RENT" | "PASS"
     expected_timeline: str
+    image_summary: str    # "" when no images provided
 
 
 class PropertyState(TypedDict):
@@ -36,22 +43,25 @@ class PropertyState(TypedDict):
 
     # After intake_node
     normalized: Optional[NormalizedFields]
+    image_analysis: List[ImageResult]   # empty list when no images submitted
 
     # After classifier_node
-    intent: Optional[str]  # "sell" | "rent" | "unknown"
+    intent: Optional[str]               # "sell" | "rent" | "unknown"
 
     # After confidence_node
     confidence: Optional[float]
     missing_fields: List[str]
 
-    # After rag_node
+    # After rag_node (internal — not returned in API response)
     rag_comps: List[RagComp]
 
-    # After clarify_node (low-confidence path)
-    clarification_message: Optional[str]
+    # After pricing_node
+    estimated_price: Optional[float]    # market estimate from comps; None if < 2 usable comps
+    deal_score: float                   # 0.0–10.0 additive score; 0.0 when no signals present
+    team: Optional[str]                 # "residential" | "commercial" | "unknown"
 
     # After analyst_node
     analysis: Optional[Analysis]
 
-    # Final output status
-    status: Optional[str]  # "complete" | "incomplete"
+    # Final
+    status: Optional[str]               # "complete" | "incomplete"
