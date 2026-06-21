@@ -63,40 +63,45 @@ def fetch_properties(
         return f"__error__: {e}"
 
 
-def _parse_sections(result: str) -> dict:
-    """Extract named sections from the result markdown text."""
-    keys = [
-        "Embassy Recommendation",
-        "Market Context",
-        "Property Assessment",
-        "Pricing Opinion",
-        "Expected Timeline",
-    ]
-    sections: dict = {}
-    for key in keys:
-        marker = f"**{key}:** "
-        if marker not in result:
-            continue
-        start = result.index(marker) + len(marker)
-        # Find where the next section starts
-        end = len(result)
-        for other in keys:
-            other_marker = f"\n\n**{other}:** "
-            pos = result.find(other_marker, start)
-            if pos != -1 and pos < end:
-                end = pos
-        sections[key] = result[start:end].strip()
-    return sections
-
-
 def _rec_badge(recommendation: str) -> str:
-    word = (recommendation or "").split()[0].upper()
+    parts = (recommendation or "").split()
+    word = parts[0].upper() if parts else ""
     bg, text, border = _REC_PALETTE.get(word, ("#f3f4f6", "#374151", "#d1d5db"))
-    label = word or "—"
+    label = recommendation or "—"
     return (
         f'<span style="background:{bg};color:{text};border:1px solid {border};'
-        f'padding:2px 12px;border-radius:20px;font-size:12px;font-weight:700;">'
+        f'padding:2px 12px;border-radius:20px;font-size:12px;font-weight:700;'
+        f'white-space:normal;word-break:break-word;">'
         f'{label}</span>'
+    )
+
+
+def _team_pill(team: str) -> str:
+    if not team:
+        return ""
+    return (
+        f'<span style="background:#e0e7ff;color:#3730a3;border:1px solid #818cf8;'
+        f'padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;">'
+        f'{team.title()}</span>'
+    )
+
+
+def _deal_score_bar(score) -> str:
+    if score is None or score == "":
+        return ""
+    try:
+        val = float(score)
+    except (ValueError, TypeError):
+        return ""
+    pct = val / 10 * 100
+    return (
+        f'<div style="display:flex;align-items:center;gap:8px;font-size:12px;">'
+        f'<span style="color:var(--body-text-color-subdued,#94a3b8);">Score</span>'
+        f'<div style="flex:1;max-width:100px;height:6px;background:#334155;border-radius:3px;">'
+        f'<div style="width:{pct:.0f}%;height:100%;background:#22c55e;border-radius:3px;"></div>'
+        f'</div>'
+        f'<span style="font-weight:700;color:var(--body-text-color,#f1f5f9);">{val:.1f}/10</span>'
+        f'</div>'
     )
 
 
@@ -187,40 +192,66 @@ def render_properties(rows) -> str:
             signed_urls = [raw_urls] if raw_urls else []
 
         title = f"{r.get('property_type', '').title()} — {r.get('location', '—')}"
-        price_str = f"{int(r['price_asking']):,} NIS" if r.get("price_asking") else "—"
+        price_str = f"{int(float(r['price_asking'])):,} NIS" if r.get("price_asking") else "—"
 
-        sections = _parse_sections(r.get("result") or "")
-        embassy_rec = sections.get("Embassy Recommendation", "")
-        market_ctx  = sections.get("Market Context", "")
+        est_str = ""
+        if r.get("estimated_price"):
+            try:
+                est_str = f"≈ {int(float(r['estimated_price'])):,} NIS est."
+            except (ValueError, TypeError):
+                pass
 
-        rec_raw = r.get("recommendation") or ""
+        analysis = {}
+        raw_analysis = r.get("analysis") or ""
+        if raw_analysis:
+            try:
+                analysis = json.loads(raw_analysis) if isinstance(raw_analysis, str) else raw_analysis
+            except Exception:
+                pass
+
+        rec_raw       = analysis.get("recommendation", "")
+        market_ctx    = analysis.get("market_context", "")
+        pricing_op    = analysis.get("pricing_opinion", "")
+        image_summary = analysis.get("image_summary", "")
 
         card = (
             f'<div style="border:1px solid var(--border-color-primary,#334155);border-radius:12px;'
             f'overflow:hidden;margin-bottom:24px;display:flex;min-height:220px;'
             f'box-shadow:0 2px 8px rgba(0,0,0,0.3);background:var(--background-fill-secondary,#1e293b);'
             f'font-family:system-ui,-apple-system,sans-serif;">'
-            # left panel — position:relative so carousel can fill it absolutely
+            # left panel
             f'<div style="width:240px;min-width:240px;flex-shrink:0;position:relative;'
             f'background:var(--background-fill-primary,#0f172a);">'
             f'{_carousel(signed_urls)}'
             f'</div>'
             # right panel
             f'<div style="flex:1;padding:16px 20px;display:flex;flex-direction:column;gap:6px;overflow:hidden;">'
-            f'<div style="font-size:17px;font-weight:700;color:var(--body-text-color,#f1f5f9);">{title}</div>'
+            # title + team pill
+            f'<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+            f'<span style="font-size:17px;font-weight:700;color:var(--body-text-color,#f1f5f9);">{title}</span>'
+            f'{_team_pill(r.get("team", ""))}'
+            f'</div>'
+            # chips row
             f'<div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--body-text-color-subdued,#94a3b8);">'
             f'<span>🛏&nbsp;<strong>{r.get("num_rooms", "—")}</strong> rooms</span>'
             f'<span>📐&nbsp;<strong>{r.get("size_sqm", "—")}</strong> sqm</span>'
-            f'<span>💰&nbsp;<strong>{price_str}</strong></span>'
             f'<span>🔧&nbsp;<strong>{(r.get("condition") or "—").title()}</strong></span>'
-            f'</div>'
-            f'<div style="display:flex;gap:12px;align-items:center;font-size:13px;color:var(--body-text-color-subdued,#94a3b8);">'
             f'<span>Intent:&nbsp;<strong style="color:var(--body-text-color,#f1f5f9);">{(r.get("intent") or "—").title()}</strong></span>'
+            f'</div>'
+            # price row
+            f'<div style="display:flex;gap:16px;align-items:baseline;flex-wrap:wrap;font-size:13px;">'
+            f'<span>💰&nbsp;<strong style="color:var(--body-text-color,#f1f5f9);">{price_str}</strong></span>'
+            + (f'<span style="color:var(--body-text-color-subdued,#94a3b8);">{est_str}</span>' if est_str else '')
+            + f'</div>'
+            # badge + score row
+            f'<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">'
             f'{_rec_badge(rec_raw)}'
+            f'{_deal_score_bar(r.get("deal_score"))}'
             f'</div>'
             f'<hr style="border:none;border-top:1px solid var(--border-color-primary,#334155);margin:4px 0;" />'
-            f'{_section_block("Embassy Recommendation", embassy_rec)}'
             f'{_section_block("Market Context", market_ctx)}'
+            f'{_section_block("Pricing Opinion", pricing_op)}'
+            f'{_section_block("Image Analysis", image_summary)}'
             f'</div>'
             f'</div>'
         )
