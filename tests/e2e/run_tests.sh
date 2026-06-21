@@ -224,9 +224,58 @@ if should_run langgraph; then
       fail "LangGraph: rent listing analysis failed — $LG_RENT"
     fi
 
+    # With image_analysis — verifies image scoring path contributes to deal_score
+    LG_WITH_IMAGE=$(curl -sf -X POST "$LANGGRAPH_URL/analyze" \
+      -H "Content-Type: application/json" \
+      --max-time 90 \
+      --data-raw '{
+        "property_type": "apartment",
+        "location": "Tel Aviv, Florentin",
+        "description": "Renovated 3-room apartment, bright and quiet.",
+        "price_asking": 3000000,
+        "size_sqm": 85,
+        "num_rooms": 3,
+        "condition": "renovated",
+        "intent": "sell",
+        "image_analysis": [
+          { "room_type": "kitchen",  "condition_score": 0.901, "confidence": 0.95 },
+          { "room_type": "bedroom",  "condition_score": 0.697, "confidence": 0.46 }
+        ]
+      }')
+    SCORE=$(python3 -c "import json; d=json.loads('''$LG_WITH_IMAGE'''); s=d.get('deal_score',0); print(s)" 2>/dev/null || echo "0")
+    IMG_SUMMARY=$(python3 -c "import json; d=json.loads('''$LG_WITH_IMAGE'''); print(d.get('analysis',{}).get('image_summary',''))" 2>/dev/null || echo "")
+    if python3 -c "import sys; sys.exit(0 if float('$SCORE') > 0 else 1)" 2>/dev/null && [ -n "$IMG_SUMMARY" ]; then
+      pass "LangGraph: image_analysis path — deal_score=$SCORE  image_summary non-empty"
+    else
+      fail "LangGraph: image_analysis path — deal_score=$SCORE  image_summary='$IMG_SUMMARY'  raw=$LG_WITH_IMAGE"
+    fi
+
+    # No price_asking — must still return status=complete and estimated_price
+    LG_NO_PRICE=$(curl -sf -X POST "$LANGGRAPH_URL/analyze" \
+      -H "Content-Type: application/json" \
+      --max-time 90 \
+      --data-raw '{
+        "property_type": "apartment",
+        "location": "Tel Aviv, Florentin",
+        "description": "Renovated 3-room apartment, bright and quiet.",
+        "size_sqm": 85,
+        "num_rooms": 3,
+        "condition": "renovated",
+        "intent": "sell"
+      }')
+    NP_STATUS=$(python3 -c "import json; print(json.loads('''$LG_NO_PRICE''').get('status','?'))" 2>/dev/null || echo "?")
+    NP_SCORE=$(python3 -c "import json; d=json.loads('''$LG_NO_PRICE'''); print(d.get('deal_score','?'))" 2>/dev/null || echo "?")
+    if [ "$NP_STATUS" = "complete" ]; then
+      pass "LangGraph: no price_asking — status=complete  deal_score=$NP_SCORE"
+    else
+      fail "LangGraph: no price_asking — expected status=complete got=$NP_STATUS  raw=$LG_NO_PRICE"
+    fi
+
   else
     skip "LangGraph sell test (service down)"
     skip "LangGraph rent test (service down)"
+    skip "LangGraph image_analysis test (service down)"
+    skip "LangGraph no-price test (service down)"
   fi
 fi
 
