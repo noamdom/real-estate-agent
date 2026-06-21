@@ -20,11 +20,18 @@ class ImageResult(TypedDict):
 
 
 class RagComp(TypedDict):
-    id: str
-    location: str
-    price_sold: float
-    size_sqm: float
-    days_on_market: int
+    id:               str
+    location:         str
+    neighborhood:     str
+    property_type:    str
+    num_rooms:        int
+    condition:        str
+    size_sqm:         float
+    price_sold:       float
+    price_listed:     float
+    price_per_sqm:    float
+    days_on_market:   int
+    sale_date:        str
     similarity_score: float
 
 

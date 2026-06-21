@@ -186,8 +186,9 @@ def rag_node(state: PropertyState) -> PropertyState:
     norm = state["normalized"]
 
     query_text = (
-        f"{norm.get('property_type', '')} in {norm.get('location', '')} "
-        f"{norm.get('size_sqm', '')} sqm {norm.get('num_rooms', '')} rooms"
+        f"{norm.get('property_type', '')} {norm.get('num_rooms', '')} rooms "
+        f"{norm.get('size_sqm', '')}sqm {norm.get('condition', '')} "
+        f"{norm.get('location', '')}"
     )
 
     try:
@@ -199,12 +200,25 @@ def rag_node(state: PropertyState) -> PropertyState:
         comps = []
         for match in results.get("matches", []):
             meta = match.get("metadata", {})
+            price_sold = float(meta.get("price_sold", 0))
+            size_sqm   = float(meta.get("size_sqm", 0))
+            stored_psm = float(meta.get("price_per_sqm", 0))
+            price_per_sqm = stored_psm if stored_psm else (
+                round(price_sold / size_sqm) if size_sqm else 0
+            )
             comps.append({
-                "id": match["id"],
-                "location": meta.get("location", ""),
-                "price_sold": float(meta.get("price_sold", 0)),
-                "size_sqm": float(meta.get("size_sqm", 0)),
-                "days_on_market": int(meta.get("days_on_market", 0)),
+                "id":               match["id"],
+                "location":         meta.get("location", ""),
+                "neighborhood":     meta.get("neighborhood", ""),
+                "property_type":    meta.get("property_type", ""),
+                "num_rooms":        int(meta.get("num_rooms", 0)),
+                "condition":        meta.get("condition", ""),
+                "size_sqm":         size_sqm,
+                "price_sold":       price_sold,
+                "price_listed":     float(meta.get("price_listed", 0)),
+                "price_per_sqm":    price_per_sqm,
+                "days_on_market":   int(meta.get("days_on_market", 0)),
+                "sale_date":        meta.get("sale_date", ""),
                 "similarity_score": round(float(match["score"]), 4),
             })
     except Exception as exc:
@@ -233,9 +247,12 @@ def pricing_node(state: PropertyState) -> PropertyState:
         team = "unknown"
 
     # ── estimated_price ───────────────────────────────────────────────────────
-    valid_comps = [c for c in comps if c.get("price_sold") and c.get("size_sqm")]
+    valid_comps = [c for c in comps if c.get("price_per_sqm") or (c.get("price_sold") and c.get("size_sqm"))]
     if len(valid_comps) >= 2:
-        price_per_sqm_avg = sum(c["price_sold"] / c["size_sqm"] for c in valid_comps) / len(valid_comps)
+        price_per_sqm_avg = sum(
+            c["price_per_sqm"] if c.get("price_per_sqm") else c["price_sold"] / c["size_sqm"]
+            for c in valid_comps
+        ) / len(valid_comps)
         size = norm.get("size_sqm")
         estimated_price = round(price_per_sqm_avg * size) if size else None
     else:
@@ -304,11 +321,27 @@ def analyst_node(state: PropertyState) -> PropertyState:
     deal_score     = state.get("deal_score", 0.0)
     estimated_price = state.get("estimated_price")
 
-    comps_text = "\n".join(
-        f"- {c['location']}, {c['size_sqm']}sqm, sold {c['price_sold']:,.0f} NIS, "
-        f"{c['days_on_market']} days on market (similarity {c['similarity_score']})"
-        for c in comps
-    ) or "No comparable listings found."
+    def _comp_line(c: dict) -> str:
+        place    = c.get("neighborhood") or c.get("location", "")
+        ptype    = c.get("property_type", "")
+        rooms    = c.get("num_rooms", "")
+        cond     = c.get("condition", "")
+        label    = " | ".join(filter(None, [
+            f"{rooms}-room {ptype}".strip() if (rooms or ptype) else "",
+            f"{c['size_sqm']}sqm",
+            cond,
+        ]))
+        pricing  = f"sold {c['price_sold']:,.0f} NIS"
+        if c.get("price_listed") and c["price_listed"] != c["price_sold"]:
+            pricing += f" (listed {c['price_listed']:,.0f} NIS)"
+        if c.get("price_per_sqm"):
+            pricing += f" | {c['price_per_sqm']:,.0f} NIS/sqm"
+        timing   = f"{c['days_on_market']} days on market"
+        if c.get("sale_date"):
+            timing += f" | sold {c['sale_date']}"
+        return f"- {place} | {label} | {pricing} | {timing} (similarity {c['similarity_score']})"
+
+    comps_text = "\n".join(_comp_line(c) for c in comps) or "No comparable listings found."
 
     image_text = "\n".join(
         f"- {img['room_type']}: condition {img['condition_score']:.2f}/1.0 "
