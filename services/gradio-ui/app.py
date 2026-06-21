@@ -124,56 +124,133 @@ with gr.Blocks(title="AI Property Triage System") as app:
         )
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # Tab 2 — Submissions
-    # ═══════════════════════════════════════════════════════════════════════════
-    with gr.Tab("📋 Submissions"):
-        gr.Markdown(
-            "Enter a **Job ID** from a previous submission to check its current status."
-        )
-
-        with gr.Row():
-            job_id_input = gr.Textbox(
-                label="Job ID",
-                placeholder="e.g. a1b2c3d4-…",
-                scale=4,
-            )
-            check_btn = gr.Button("Check Status", variant="primary", scale=1)
-
-        status_display = gr.Markdown("*No job ID entered yet.*")
-
-        check_btn.click(submission_mod.check_status_once, job_id_input, status_display)
-        job_id_input.submit(submission_mod.check_status_once, job_id_input, status_display)
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # Tab 3 — Properties
+    # Tab 2 — Properties
     # ═══════════════════════════════════════════════════════════════════════════
     with gr.Tab("🏠 Properties"):
         with gr.Row():
-            filter_location  = gr.Textbox(label="Location", scale=2)
-            filter_type      = gr.Dropdown(
-                ["", "apartment", "villa", "commercial", "land"],
-                label="Type",
-                scale=1,
+
+            # ── Left column: active filters + results ─────────────────────────
+            with gr.Column(scale=3):
+                with gr.Row():
+                    filter_location  = gr.Textbox(label="Location", scale=2)
+                    filter_type      = gr.Dropdown(
+                        ["", "apartment", "villa", "commercial", "land"],
+                        label="Type",
+                        scale=1,
+                    )
+                    filter_min_rooms = gr.Number(label="Min rooms", scale=1, minimum=0)
+                    filter_max_price = gr.Number(label="Max price (NIS)", scale=1, minimum=0)
+                    refresh_btn      = gr.Button("🔄 Refresh", scale=1)
+
+                properties_display = gr.Markdown(
+                    "*Use the chat or click Refresh to load listings.*",
+                    sanitize_html=False,
+                )
+
+            # ── Right column: filter chatbot ──────────────────────────────────
+            with gr.Column(scale=1, min_width=300):
+                gr.Markdown("#### 🤖 Filter Assistant")
+                filter_chatbot = gr.Chatbot(
+                    value=[{
+                        "role": "assistant",
+                        "content": (
+                            "Hi! Tell me what you're looking for — e.g. "
+                            "*'3 rooms in Tel Aviv'* or "
+                            "*'commercial property under 2M NIS'*."
+                        ),
+                    }],
+                    height=380,
+                    show_label=False,
+                    buttons=[],
+                )
+                with gr.Row():
+                    filter_msg = gr.Textbox(
+                        placeholder="Describe what you're looking for…",
+                        show_label=False,
+                        scale=5,
+                        autofocus=False,
+                    )
+                    filter_send = gr.Button("Search", variant="primary", scale=1)
+                gr.ClearButton(
+                    [filter_chatbot],
+                    value="🗑 Clear chat",
+                    size="sm",
+                )
+
+        # ── Shared interactive controls (needed in both handlers) ─────────────
+        _controls = [filter_location, filter_type, filter_min_rooms, filter_max_price,
+                     filter_send, refresh_btn]
+
+        # ── Chat-driven filtering ─────────────────────────────────────────────
+        def _chat_filter(message, history, location, ptype, rooms, price):
+            interim = list(history) + [{"role": "user", "content": message}]
+            yield (
+                interim, "",
+                gr.update(interactive=False), gr.update(interactive=False),
+                gr.update(interactive=False), gr.update(interactive=False),
+                gr.update(interactive=False),
+                gr.update(interactive=False, value="↻ Loading…"),
+                gr.update(),
             )
-            filter_min_rooms = gr.Number(label="Min rooms", scale=1, minimum=0)
-            filter_max_price = gr.Number(label="Max price (NIS)", scale=1, minimum=0)
-            refresh_btn      = gr.Button("🔄 Refresh", scale=1)
+            new_hist, new_loc, new_type, new_rooms, new_price, rendered = \
+                properties_mod.chat_filter(message, history)
+            yield (
+                new_hist, "",
+                gr.update(value=new_loc,          interactive=True),
+                gr.update(value=new_type or "",   interactive=True),
+                gr.update(value=new_rooms,        interactive=True),
+                gr.update(value=new_price,        interactive=True),
+                gr.update(interactive=True),
+                gr.update(interactive=True, value="🔄 Refresh"),
+                rendered,
+            )
 
-        properties_display = gr.Markdown("*Click Refresh to load listings.*", sanitize_html=False)
+        _chat_inputs  = [filter_msg, filter_chatbot,
+                         filter_location, filter_type, filter_min_rooms, filter_max_price]
+        _chat_outputs = [filter_chatbot, filter_msg,
+                         filter_location, filter_type, filter_min_rooms, filter_max_price,
+                         filter_send, refresh_btn, properties_display]
 
+        filter_send.click(
+            _chat_filter, _chat_inputs, _chat_outputs, show_progress="hidden",
+        )
+        filter_msg.submit(
+            _chat_filter, _chat_inputs, _chat_outputs, show_progress="hidden",
+        )
+
+        # ── Manual refresh ────────────────────────────────────────────────────
         def _load(location, ptype, rooms, price):
+            yield (
+                gr.update(interactive=False),
+                gr.update(interactive=False, value="↻ Loading…"),
+                gr.update(interactive=False), gr.update(interactive=False),
+                gr.update(interactive=False), gr.update(interactive=False),
+                gr.update(),
+            )
             rows = properties_mod.fetch_properties(
                 location=location or "",
                 property_type=ptype or "",
                 min_rooms=rooms or None,
                 max_price=price or None,
             )
-            return properties_mod.render_properties(rows)
+            rendered = properties_mod.render_properties(rows)
+            yield (
+                gr.update(interactive=True),
+                gr.update(interactive=True, value="🔄 Refresh"),
+                gr.update(interactive=True), gr.update(interactive=True),
+                gr.update(interactive=True), gr.update(interactive=True),
+                rendered,
+            )
+
+        _load_outputs = [filter_send, refresh_btn,
+                         filter_location, filter_type, filter_min_rooms, filter_max_price,
+                         properties_display]
 
         refresh_btn.click(
             _load,
             [filter_location, filter_type, filter_min_rooms, filter_max_price],
-            properties_display,
+            _load_outputs,
+            show_progress="hidden",
         )
 
 if __name__ == "__main__":
