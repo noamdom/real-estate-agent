@@ -1,15 +1,20 @@
+import re
+
 import gradio as gr
 
 import intake as intake_mod
 import properties as properties_mod
+import status as status_mod
 import submission as submission_mod
 from config import GRADIO_SERVER_NAME, GRADIO_SERVER_PORT
 
 _GREETING = (
     "Hello! I'm your property intake assistant. "
-    "Please describe the property you'd like to list — "
-    "type, location, condition, intent (sell or rent), and any key features."
+    "Please describe the property you'd like to list for sale — "
+    "type, location, condition, and any key features."
 )
+
+_RENTAL_PHRASE = "Rental listings are currently not supported"
 
 with gr.Blocks(title="AI Property Triage System") as app:
     gr.Markdown("# 🏠 AI Property Triage System")
@@ -17,6 +22,8 @@ with gr.Blocks(title="AI Property Triage System") as app:
     # ── Shared state ──────────────────────────────────────────────────────────
     fields_state = gr.State({})
     last_llm_desc_state = gr.State("")
+    rental_blocked_state = gr.State(False)
+    job_id_state = gr.State("")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Tab 1 — Intake Assistant
@@ -76,31 +83,53 @@ with gr.Blocks(title="AI Property Triage System") as app:
         respond_inputs = [
             msg_input, chatbot, image_upload,
             fields_state, description_box, last_llm_desc_state,
+            rental_blocked_state,
         ]
         respond_outputs = [
             chatbot, fields_display, fields_state,
             msg_input, description_box, last_llm_desc_state,
+            rental_blocked_state, submit_btn,
         ]
 
-        send_btn.click(intake_mod.intake_respond, respond_inputs, respond_outputs)
-        msg_input.submit(intake_mod.intake_respond, respond_inputs, respond_outputs)
+        def _intake_respond(message, history, image_files, fields, desc, last_llm, rental_blocked):
+            for chatbot_val, fields_disp, fields_st, msg_inp, desc_box, last_llm_st in \
+                    intake_mod.intake_respond(message, history, image_files, fields, desc, last_llm):
+
+                last_content = ""
+                if chatbot_val:
+                    last_msg = chatbot_val[-1]
+                    last_content = (
+                        last_msg.get("content", "") if isinstance(last_msg, dict)
+                        else getattr(last_msg, "content", "")
+                    ) or ""
+
+                if _RENTAL_PHRASE in last_content:
+                    rental_blocked = True
+                if (fields_st or {}).get("intent") == "sell":
+                    rental_blocked = False
+
+                btn = gr.update(interactive=not rental_blocked)
+                yield chatbot_val, fields_disp, fields_st, msg_inp, desc_box, last_llm_st, rental_blocked, btn
+
+        send_btn.click(_intake_respond, respond_inputs, respond_outputs)
+        msg_input.submit(_intake_respond, respond_inputs, respond_outputs)
 
         MAX_IMAGES = 5
 
-        def _on_images_change(files, fields, desc):
+        def _on_images_change(files, fields, desc, rental_blocked):
             too_many = isinstance(files, list) and len(files) > MAX_IMAGES
             warning = gr.update(
                 value=f"⚠️ Please remove images — max {MAX_IMAGES} allowed.",
                 visible=too_many,
             )
             checklist = intake_mod.render_checklist(fields, bool(files), desc)
-            btn = gr.update(interactive=not too_many)
+            btn = gr.update(interactive=not too_many and not rental_blocked)
             return checklist, warning, btn
 
         # Update checklist when images are added/removed
         image_upload.change(
             _on_images_change,
-            [image_upload, fields_state, description_box],
+            [image_upload, fields_state, description_box, rental_blocked_state],
             [fields_display, image_limit_warning, submit_btn],
         )
 
@@ -109,18 +138,6 @@ with gr.Blocks(title="AI Property Triage System") as app:
             lambda desc, fields, files: intake_mod.render_checklist(fields, bool(files), desc),
             [description_box, fields_state, image_upload],
             fields_display,
-        )
-
-        def _do_submit(fields, description, image_files):
-            if isinstance(image_files, list) and len(image_files) > MAX_IMAGES:
-                image_files = image_files[:MAX_IMAGES]
-            result = submission_mod.submit_from_chat(fields, description, image_files)
-            return gr.update(value=result, visible=True)
-
-        submit_btn.click(
-            _do_submit,
-            [fields_state, description_box, image_upload],
-            submission_result,
         )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -252,6 +269,58 @@ with gr.Blocks(title="AI Property Triage System") as app:
             _load_outputs,
             show_progress="hidden",
         )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Tab 3 — Submission Status
+    # ═══════════════════════════════════════════════════════════════════════════
+    with gr.Tab("📋 Submission Status"):
+        with gr.Row():
+            status_job_id_input = gr.Textbox(
+                label="Job ID",
+                placeholder="e.g. 501",
+                scale=4,
+            )
+            check_btn = gr.Button("Check Status", variant="primary", scale=1)
+
+        status_display = gr.Markdown(
+            "*Enter a job ID and click Check Status.*",
+            sanitize_html=False,
+        )
+
+        def _check_status(job_id):
+            yield gr.update(interactive=False), gr.update()
+            for rendered, is_terminal in status_mod.poll_job(job_id):
+                yield gr.update(interactive=is_terminal), rendered
+
+        check_btn.click(
+            _check_status,
+            status_job_id_input,
+            [check_btn, status_display],
+            show_progress="hidden",
+        )
+        status_job_id_input.submit(
+            _check_status,
+            status_job_id_input,
+            [check_btn, status_display],
+            show_progress="hidden",
+        )
+
+    # ── Tab 1 submit wiring (deferred so status_job_id_input is in scope) ─────
+    def _do_submit(fields, description, image_files):
+        if isinstance(image_files, list) and len(image_files) > MAX_IMAGES:
+            image_files = image_files[:MAX_IMAGES]
+        result = submission_mod.submit_from_chat(fields, description, image_files)
+        job_id = ""
+        m = re.search(r"Job ID: `([^`]+)`", result)
+        if m:
+            job_id = m.group(1)
+        return gr.update(value=result, visible=True), job_id
+
+    submit_btn.click(
+        _do_submit,
+        [fields_state, description_box, image_upload],
+        [submission_result, status_job_id_input],
+    )
 
 if __name__ == "__main__":
     app.launch(

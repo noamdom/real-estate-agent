@@ -92,7 +92,7 @@ def submit_from_chat(fields: dict, description: str, image_files) -> str:
         )
         return (
             f"✅ **Submitted!**{img_note} Job ID: `{job_id}`\n\n"
-            "Switch to the **Submissions** tab to check status."
+            "Switch to the **Submission Status** tab to check status."
         )
     except Exception as exc:
         return f"❌ Submission failed: `{exc}`"
