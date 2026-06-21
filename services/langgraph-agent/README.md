@@ -44,34 +44,37 @@ LANGCHAIN_PROJECT=property-triage
 POST /analyze
       │
       ▼
- intake_node          normalize & validate raw payload
+ intake_node          normalize payload; parse image_analysis array
       │
       ▼
  classifier_node      keyword scan → detect intent: sell | rent | unknown
       │
       ▼
- confidence_node      score 0.0–1.0 based on field completeness
+ confidence_node      score 0.0–1.0 (price_asking not required)
       │
-      ├── score >= 0.5 ──────────────────┐
+      ├── score >= 0.4 ──────────────────┐
       │                                  ▼
       │                            rag_node        query Pinecone → top-3 comps
       │                                  │
       │                                  ▼
+      │                            pricing_node    arithmetic: deal_score, estimated_price, team
+      │                                  │
+      │                                  ▼
       │                            analyst_node    LLM → full embassy analysis
       │                                  │
-      └── score < 0.5 ───┐               │
+      └── score < 0.4 ───┐               │
                          ▼               │
-                   clarify_node          │  identify missing fields,
-                   (incomplete)          │  generate clarification message
+                   clarify_node          │  status=incomplete, missing_fields set
+                   (incomplete)          │
                          │               │
                          └───────────────┘
                                   │
                                   ▼
-                            output_node     format final JSON response
+                            output_node     finalize status
                                   │
                                   ▼
                           { intent, confidence, status,
-                            normalized, rag_comps,
-                            analysis, missing_fields,
-                            clarification_message }
+                            team, deal_score, estimated_price,
+                            normalized, image_analysis,
+                            analysis, missing_fields }
 ```

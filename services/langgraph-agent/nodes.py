@@ -21,7 +21,19 @@ _llm = None
 _embeddings = None
 _pinecone_index = None
 
-REQUIRED_FIELDS = ["property_type", "location", "price_asking", "size_sqm", "num_rooms"]
+# price_asking intentionally excluded — missing price does not block analysis;
+# pricing_node estimates from comps instead.
+REQUIRED_FIELDS = ["property_type", "location", "size_sqm", "num_rooms"]
+
+_RESIDENTIAL = {"apartment", "house", "villa", "penthouse", "duplex", "studio", "cottage"}
+_COMMERCIAL  = {"office", "retail", "industrial", "warehouse", "commercial", "shop", "co-working"}
+
+_CONDITION_SCORES = {
+    "new": 2.0, "renovated": 2.0, "excellent": 2.0,
+    "good": 1.5,
+    "fair": 1.0,
+    "poor": 0.5, "needs renovation": 0.5,
+}
 
 
 def _get_llm() -> ChatOpenAI:
@@ -55,7 +67,6 @@ def _call_llm_json(system: str, user: str) -> Any:
     llm = _get_llm()
     response = llm.invoke([SystemMessage(content=system), HumanMessage(content=user)])
     text = response.content.strip()
-    # Strip markdown fences if present
     if text.startswith("```"):
         text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
     return json.loads(text)
@@ -64,7 +75,7 @@ def _call_llm_json(system: str, user: str) -> Any:
 # ── Node 1 ────────────────────────────────────────────────────────────────────
 
 def intake_node(state: PropertyState) -> PropertyState:
-    """Normalize and validate the raw payload, standardize field names."""
+    """Normalize raw payload and parse image_analysis into typed list."""
     raw = state["raw_payload"]
 
     normalized = {
@@ -77,15 +88,26 @@ def intake_node(state: PropertyState) -> PropertyState:
         "agent_name": raw.get("agent_name") or raw.get("agentName"),
     }
 
+    raw_images = raw.get("image_analysis") or []
+    image_analysis = []
+    for img in raw_images:
+        if isinstance(img, dict):
+            image_analysis.append({
+                "room_type": str(img.get("room_type", "other")),
+                "condition_score": _to_float(img.get("condition_score")) or 0.0,
+                "confidence": _to_float(img.get("confidence")) or 0.0,
+            })
+
     log.info(
-        "[intake]      type=%-12s  location=%-20s  price=%s  size=%s sqm  rooms=%s",
+        "[intake]      type=%-12s  location=%-20s  price=%s  size=%s sqm  rooms=%s  images=%d",
         normalized.get("property_type") or "?",
         normalized.get("location") or "?",
         normalized.get("price_asking") or "?",
         normalized.get("size_sqm") or "?",
         normalized.get("num_rooms") or "?",
+        len(image_analysis),
     )
-    return {**state, "normalized": normalized}
+    return {**state, "normalized": normalized, "image_analysis": image_analysis}
 
 
 # ── Node 2 ────────────────────────────────────────────────────────────────────
@@ -93,42 +115,31 @@ def intake_node(state: PropertyState) -> PropertyState:
 _RENT_KEYWORDS = {
     "rent", "rental", "renting", "tenant", "tenants", "lease", "leasing",
     "monthly", "per month", "pcm",
-    # Hebrew
     "שכירות", "לשכירות", "שוכר", "שכר",
 }
 
 _SELL_KEYWORDS = {
     "sell", "sale", "selling", "for sale", "purchase", "buyer",
     "asking price", "list price", "freehold",
-    # Hebrew
     "מכירה", "למכירה", "מוכר",
 }
 
 
 def classifier_node(state: PropertyState) -> PropertyState:
-    """Detect intent (sell | rent | unknown) without an LLM call.
-
-    Priority:
-      1. Explicit `intent` field on the raw payload (set by the caller).
-      2. Keyword scan across description + property_type.
-      3. Falls back to "unknown".
-    """
+    """Detect intent (sell | rent | unknown) without an LLM call."""
     raw = state["raw_payload"]
 
-    # 1 — caller-supplied intent
     explicit = (raw.get("intent") or "").strip().lower()
     if explicit in ("sell", "rent"):
         log.info("[classifier]  intent=%-8s  method=explicit", explicit)
         return {**state, "intent": explicit}
 
-    # 2 — keyword scan
     haystack = " ".join(filter(None, [
         raw.get("description", ""),
         raw.get("property_type", ""),
     ])).lower()
 
     words = set(haystack.split())
-
     rent_hits = words & _RENT_KEYWORDS
     sell_hits = words & _SELL_KEYWORDS
 
@@ -137,7 +148,6 @@ def classifier_node(state: PropertyState) -> PropertyState:
     elif sell_hits and not rent_hits:
         intent = "sell"
     elif sell_hits and rent_hits:
-        # both found — whichever has more keyword hits wins
         intent = "rent" if len(rent_hits) >= len(sell_hits) else "sell"
     else:
         intent = "unknown"
@@ -156,10 +166,8 @@ def confidence_node(state: PropertyState) -> PropertyState:
     present = len(REQUIRED_FIELDS) - len(missing)
     field_score = present / len(REQUIRED_FIELDS)
 
-    # Penalise unknown intent
     intent_penalty = 0.1 if state.get("intent") == "unknown" else 0.0
 
-    # Penalise suspiciously low prices (below 100 NIS/month makes no sense)
     price = norm.get("price_asking") or 0
     price_penalty = 0.1 if 0 < price < 100 else 0.0
 
@@ -167,7 +175,7 @@ def confidence_node(state: PropertyState) -> PropertyState:
 
     log.info("[confidence]  score=%.2f  missing=%s  → %s",
              score, missing or "none",
-             "rag_node" if score >= 0.5 else "clarify_node")
+             "rag_node" if score >= 0.4 else "clarify_node")
     return {**state, "confidence": score, "missing_fields": missing}
 
 
@@ -209,35 +217,92 @@ def rag_node(state: PropertyState) -> PropertyState:
 
 # ── Node 4b ───────────────────────────────────────────────────────────────────
 
-def clarify_node(state: PropertyState) -> PropertyState:
-    """Low-confidence path: generate a friendly clarification message."""
-    missing = state.get("missing_fields", [])
-    field_labels = {
-        "property_type": "property type (apartment / house / villa / office)",
-        "location": "property location (city and neighbourhood)",
-        "price_asking": "asking price in NIS",
-        "size_sqm": "property size in square metres",
-        "num_rooms": "number of rooms",
-    }
-    readable = [field_labels.get(f, f) for f in missing]
-    items = ", ".join(readable) if readable else "more details"
+def pricing_node(state: PropertyState) -> PropertyState:
+    """Compute deal_score, estimated_price, and team — no LLM call."""
+    norm     = state["normalized"]
+    comps    = state.get("rag_comps", [])
+    images   = state.get("image_analysis", [])
 
-    message = (
-        f"Thank you for your submission. To proceed with a full analysis, "
-        f"we need a bit more information: {items}. "
-        "Please reply with these details and we will complete the evaluation."
+    # ── team ──────────────────────────────────────────────────────────────────
+    ptype = (norm.get("property_type") or "").lower().strip()
+    if ptype in _RESIDENTIAL:
+        team = "residential"
+    elif ptype in _COMMERCIAL:
+        team = "commercial"
+    else:
+        team = "unknown"
+
+    # ── estimated_price ───────────────────────────────────────────────────────
+    valid_comps = [c for c in comps if c.get("price_sold") and c.get("size_sqm")]
+    if len(valid_comps) >= 2:
+        price_per_sqm_avg = sum(c["price_sold"] / c["size_sqm"] for c in valid_comps) / len(valid_comps)
+        size = norm.get("size_sqm")
+        estimated_price = round(price_per_sqm_avg * size) if size else None
+    else:
+        price_per_sqm_avg = None
+        estimated_price = None
+
+    # ── deal_score (additive, missing signal = 0) ─────────────────────────────
+    price_asking = norm.get("price_asking")
+    size         = norm.get("size_sqm")
+
+    # price_score (0–4): how well priced vs comp average
+    if price_asking and size and price_per_sqm_avg and len(valid_comps) >= 2:
+        deviation   = (price_asking / size - price_per_sqm_avg) / price_per_sqm_avg
+        price_score = 4.0 * max(0.0, min(1.0, 1 - deviation / 0.30))
+    else:
+        price_score = 0.0
+
+    # image_score (0–3): average condition across all rooms
+    if images:
+        avg_condition = sum(img["condition_score"] for img in images) / len(images)
+        image_score   = 3.0 * avg_condition
+    else:
+        image_score = 0.0
+
+    # condition_score (0–2): text condition field
+    condition_text  = (norm.get("condition") or "").lower().strip()
+    condition_score = _CONDITION_SCORES.get(condition_text, 0.0)
+
+    # velocity_score (0–1): how fast similar properties sell
+    dom_comps = [c for c in comps if c.get("days_on_market") is not None]
+    if len(dom_comps) >= 2:
+        avg_dom        = sum(c["days_on_market"] for c in dom_comps) / len(dom_comps)
+        velocity_score = 1.0 - min(1.0, avg_dom / 90)
+    else:
+        velocity_score = 0.0
+
+    deal_score = round(min(10.0, max(0.0,
+        price_score + image_score + condition_score + velocity_score
+    )), 2)
+
+    log.info(
+        "[pricing]     team=%s  score=%.2f  "
+        "(price=%.2f  image=%.2f  condition=%.2f  velocity=%.2f)  est_price=%s",
+        team, deal_score,
+        price_score, image_score, condition_score, velocity_score,
+        estimated_price or "n/a",
     )
+    return {**state, "team": team, "estimated_price": estimated_price, "deal_score": deal_score}
 
-    log.info("[clarify]     missing=%s", missing)
-    return {**state, "clarification_message": message, "status": "incomplete"}
+
+# ── Node 4c ───────────────────────────────────────────────────────────────────
+
+def clarify_node(state: PropertyState) -> PropertyState:
+    """Low-confidence path: flag status as incomplete, missing_fields already set."""
+    log.info("[clarify]     missing=%s", state.get("missing_fields"))
+    return {**state, "status": "incomplete"}
 
 
 # ── Node 5 ────────────────────────────────────────────────────────────────────
 
 def analyst_node(state: PropertyState) -> PropertyState:
-    """Full embassy analysis using normalized fields + RAG comps."""
-    norm = state["normalized"]
-    comps = state.get("rag_comps", [])
+    """Full embassy analysis using all available signals."""
+    norm           = state["normalized"]
+    comps          = state.get("rag_comps", [])
+    images         = state.get("image_analysis", [])
+    deal_score     = state.get("deal_score", 0.0)
+    estimated_price = state.get("estimated_price")
 
     comps_text = "\n".join(
         f"- {c['location']}, {c['size_sqm']}sqm, sold {c['price_sold']:,.0f} NIS, "
@@ -245,43 +310,70 @@ def analyst_node(state: PropertyState) -> PropertyState:
         for c in comps
     ) or "No comparable listings found."
 
-    system = """You are a senior property analyst for a real estate embassy.
-Your job is to evaluate property listings and provide acquisition recommendations.
-Reply with a JSON object containing exactly these keys:
-  market_context, property_assessment, pricing_opinion, recommendation, expected_timeline
-Keep each value to 1–3 sentences. Be factual. Do not invent prices or legal claims.
-recommendation must start with one of: BUY | NEGOTIATE | RENT | PASS."""
+    image_text = "\n".join(
+        f"- {img['room_type']}: condition {img['condition_score']:.2f}/1.0 "
+        f"(confidence {img['confidence']:.0%})"
+        for img in images
+    ) or "No images provided."
 
-    price = norm.get('price_asking')
-    price_str = f"{price:,} NIS" if price is not None else "not specified"
+    price         = norm.get("price_asking")
+    price_str     = f"{price:,.0f} NIS" if price is not None else "Not provided"
+    est_price_str = f"{estimated_price:,.0f} NIS" if estimated_price is not None else "Insufficient comp data"
+
+    system = """You are a senior property analyst for a real estate embassy.
+Pricing arithmetic has already been computed — use the provided deal_score and estimated_price
+as given facts. Do not recalculate or contradict them.
+Return a JSON object with exactly these keys:
+  market_context, property_assessment, pricing_opinion, recommendation, expected_timeline, image_summary
+Guidelines:
+- market_context: 1–2 sentences on the sub-market using location, property type, and comp velocity.
+- property_assessment: physical condition of the property. Incorporate image condition scores if available.
+- pricing_opinion: state the estimated market value and how the asking price compares (% above/below).
+  If no asking price was given, state the market estimate only and note that no asking price was supplied.
+- recommendation: must start with BUY | NEGOTIATE | RENT | PASS followed by " — " and one line
+  explaining why, referencing deal_score or price deviation where relevant.
+- expected_timeline: one sentence on likely days-to-close based on comp days_on_market data.
+  If no comp data, give a general estimate based on property type and condition.
+- image_summary: one sentence per room type summarising the condition score. Use "" if no images provided.
+Do not invent prices, legal guarantees, certifications, or market data not present in the input.
+If comparable listings are absent, say so explicitly and lower confidence in the pricing opinion."""
+
     user = (
         f"Property: {norm.get('property_type')} in {norm.get('location')}\n"
+        f"Description: {norm.get('description') or (state['raw_payload'].get('description') or 'Not provided')}\n"
         f"Size: {norm.get('size_sqm')} sqm, {norm.get('num_rooms')} rooms\n"
         f"Asking price: {price_str}\n"
-        f"Condition: {norm.get('condition', 'not specified')}\n"
+        f"Condition: {norm.get('condition') or 'not specified'}\n"
         f"Intent: {state.get('intent')}\n\n"
-        f"Comparable listings:\n{comps_text}"
+        f"Pre-computed pricing:\n"
+        f"  Estimated market value: {est_price_str}\n"
+        f"  Deal score: {deal_score} / 10\n\n"
+        f"Comparable listings:\n{comps_text}\n\n"
+        f"Image analysis:\n{image_text}"
     )
 
-    log.info("[analyst]     calling LLM  comps=%d  intent=%s", len(comps), state.get("intent"))
+    log.info("[analyst]     calling LLM  comps=%d  images=%d  deal_score=%.2f  intent=%s",
+             len(comps), len(images), deal_score, state.get("intent"))
     try:
         result = _call_llm_json(system, user)
         analysis = {
-            "market_context": result.get("market_context", ""),
+            "market_context":      result.get("market_context", ""),
             "property_assessment": result.get("property_assessment", ""),
-            "pricing_opinion": result.get("pricing_opinion", ""),
-            "recommendation": result.get("recommendation", ""),
-            "expected_timeline": result.get("expected_timeline", ""),
+            "pricing_opinion":     result.get("pricing_opinion", ""),
+            "recommendation":      result.get("recommendation", ""),
+            "expected_timeline":   result.get("expected_timeline", ""),
+            "image_summary":       result.get("image_summary", ""),
         }
-        log.info("[analyst]     recommendation=%s", analysis["recommendation"][:60])
+        log.info("[analyst]     recommendation=%s", analysis["recommendation"][:80])
     except Exception as exc:
         log.warning("[analyst]     LLM failed: %s — falling back to PASS", exc)
         analysis = {
-            "market_context": "Analysis unavailable.",
+            "market_context":      "Analysis unavailable.",
             "property_assessment": "",
-            "pricing_opinion": "",
-            "recommendation": "PASS",
-            "expected_timeline": "",
+            "pricing_opinion":     "",
+            "recommendation":      "PASS",
+            "expected_timeline":   "",
+            "image_summary":       "",
         }
 
     return {**state, "analysis": analysis}
@@ -290,17 +382,18 @@ recommendation must start with one of: BUY | NEGOTIATE | RENT | PASS."""
 # ── Node 6 ────────────────────────────────────────────────────────────────────
 
 def output_node(state: PropertyState) -> PropertyState:
-    """Set final status and clean up state for serialization."""
+    """Set final status."""
     status = state.get("status") or "complete"
-    log.info("[output]      status=%s  intent=%s  confidence=%s",
-             status, state.get("intent"), state.get("confidence"))
+    log.info("[output]      status=%s  intent=%s  confidence=%s  team=%s  deal_score=%s",
+             status, state.get("intent"), state.get("confidence"),
+             state.get("team"), state.get("deal_score"))
     return {**state, "status": status}
 
 
 # ── Routing ───────────────────────────────────────────────────────────────────
 
 def route_after_confidence(state: PropertyState) -> str:
-    return "rag_node" if (state.get("confidence") or 0) >= 0.5 else "clarify_node"
+    return "rag_node" if (state.get("confidence") or 0) >= 0.4 else "clarify_node"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
