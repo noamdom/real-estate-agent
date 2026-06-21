@@ -58,7 +58,7 @@ def _get_pinecone_index():
     global _pinecone_index
     if _pinecone_index is None:
         pc = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
-        _pinecone_index = pc.Index("rag-properties")
+        _pinecone_index = pc.Index("rag-properties-israel")
     return _pinecone_index
 
 
