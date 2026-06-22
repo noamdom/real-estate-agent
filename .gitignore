@@ -30,7 +30,10 @@ node_modules/
 # Images
 assets/House_Room_Dataset
 assets/rooms-images.zip
-
+assets/*
 
 # Google credentials
 services/langgraph-agent/google-credentials.json
+
+
+ai_2701_key.pem
