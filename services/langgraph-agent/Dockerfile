@@ -1,5 +1,4 @@
-# --platform ensures the image targets linux/amd64 (EC2) even when built on Apple Silicon
-FROM --platform=linux/amd64 python:3.11-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
