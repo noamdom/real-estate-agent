@@ -36,7 +36,7 @@ End-to-end AI pipeline that automates real estate listing intake and analysis fo
 | **LLM inference** | OpenAI gpt-4.1-nano (analyst), gpt-4o-mini (guardrails) |
 | **Embeddings** | OpenAI text-embedding-3-small |
 | **Vector store / RAG** | Pinecone — `rag-properties-israel`, 1 000 Israeli comps, 512-dim |
-| **Image classification** | CLIP ViT-B/32 — zero-shot room type + condition score |
+| **Image classification** | [CLIP ViT-B/32](https://huggingface.co/docs/transformers/en/model_doc/clip) — zero-shot room type + condition score |
 | **Guardrails** | Custom LLM prompts — input spam/discriminatory, image label, output false claims |
 | **Orchestration** | n8n (Docker) — webhook trigger, async job processing, Google Sheets logging |
 | **UI** | Gradio — Intake Assistant, Properties tab, Submission Status |
