@@ -10,7 +10,10 @@
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [6064, 7392],
+      "position": [
+        6064,
+        7392
+      ],
       "id": "7b8f32be-110b-4fbf-a78d-1c02cae8537e",
       "name": "User Submit",
       "webhookId": "d1de4022-9ab4-4f1c-b8dd-f91ea9b7c3e5"
@@ -25,7 +28,10 @@
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
-      "position": [6288, 7296],
+      "position": [
+        6288,
+        7296
+      ],
       "id": "eedf45af-2806-4fd5-ae9c-39ab63099bd5",
       "name": "Respond to user submission trigger"
     },
@@ -288,7 +294,10 @@
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [6288, 7488],
+      "position": [
+        6288,
+        7488
+      ],
       "id": "d784aeaf-0c7d-4951-9ffd-a04e9e8350f9",
       "name": "Insert row",
       "credentials": {
@@ -311,7 +320,10 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [6512, 7488],
+      "position": [
+        6512,
+        7488
+      ],
       "id": "b0d8550a-c4cf-4de6-ad47-2a16ded81518",
       "name": "Guardrails Input Check"
     },
@@ -341,7 +353,10 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [6736, 7488],
+      "position": [
+        6736,
+        7488
+      ],
       "id": "3bfd90ca-7a71-4bc3-83fb-6fa6e37dc573",
       "name": "Input Valid?"
     },
@@ -363,10 +378,12 @@
           "value": {
             "job_id": "={{ $('Insert row').first().json.job_id }}",
             "status": "rejected",
-            "analysis": "={{ JSON.stringify({ error: '❌ Submission rejected: ' + $('Guardrails Input Check').first().json.reason }) }}",
+            "analysis": "={{ JSON.stringify({ error: '\u274c Submission rejected: ' + $('Guardrails Input Check').first().json.reason }) }}",
             "completed_at": "={{ $now.toISO() }}"
           },
-          "matchingColumns": ["job_id"],
+          "matchingColumns": [
+            "job_id"
+          ],
           "schema": [
             {
               "id": "job_id",
@@ -596,7 +613,10 @@
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [6960, 7584],
+      "position": [
+        6960,
+        7584
+      ],
       "id": "d6649c82-5ab2-4a15-8771-92491569a610",
       "name": "Update row (rejected)",
       "credentials": {
@@ -632,7 +652,10 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [6960, 7392],
+      "position": [
+        6960,
+        7392
+      ],
       "id": "f68fda23-d1a8-490c-b407-ec6cccc3ac39",
       "name": "Has Image File?"
     },
@@ -642,7 +665,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [7184, 7312],
+      "position": [
+        7184,
+        7312
+      ],
       "id": "b910b458-b098-4475-aa1d-456815f4c1f4",
       "name": "Prepare Image JSON",
       "onError": "continueRegularOutput"
@@ -696,7 +722,10 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [7408, 7312],
+      "position": [
+        7408,
+        7312
+      ],
       "id": "429f3578-90a6-4f24-9072-1a45311fbac4",
       "name": "Call Image Analyser",
       "onError": "continueRegularOutput"
@@ -707,7 +736,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [7632, 7312],
+      "position": [
+        7632,
+        7312
+      ],
       "id": "fa71701f-a611-4e07-b36d-2c967b80e603",
       "name": "Parse Image JSON",
       "onError": "continueRegularOutput"
@@ -731,10 +763,12 @@
             "job_id": "={{ $('Insert row').first().json.job_id }}",
             "status": "rejected",
             "image_urls": "={{ JSON.stringify($('Parse Image JSON').first().json.image_urls) }}",
-            "analysis": "={{ JSON.stringify({ error: '❌ Image rejected: uploaded images do not appear to be property photos. ' + ($('Image Label Guardrail').first().json.reason || 'Non-property content detected.') + ' Labels detected: ' + $('Parse Image JSON').first().json.image_analysis.map(i => i.room_type).join(', ') }) }}",
+            "analysis": "={{ JSON.stringify({ error: '\u274c Image rejected: uploaded images do not appear to be property photos. ' + ($('Image Label Guardrail').first().json.reason || 'Non-property content detected.') + ' Labels detected: ' + $('Parse Image JSON').first().json.image_analysis.map(i => i.room_type).join(', ') }) }}",
             "completed_at": "={{ $now.toISO() }}"
           },
-          "matchingColumns": ["job_id"],
+          "matchingColumns": [
+            "job_id"
+          ],
           "schema": [
             {
               "id": "job_id",
@@ -964,7 +998,10 @@
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [8304, 7264],
+      "position": [
+        8304,
+        7264
+      ],
       "id": "ba603018-2c0c-411d-a5a6-7350679837bc",
       "name": "Update row (image rejected)",
       "credentials": {
@@ -980,7 +1017,10 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [8304, 7488],
+      "position": [
+        8304,
+        7488
+      ],
       "id": "942a0228-249d-4bdf-a0fc-d4678facfa2a",
       "name": "Build LangGraph Body"
     },
@@ -997,18 +1037,24 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [8528, 7488],
+      "position": [
+        8528,
+        7488
+      ],
       "id": "8e7b11fd-a87e-4136-ad14-ecb451fb2481",
       "name": "LangGraph Analyze",
       "onError": "continueErrorOutput"
     },
     {
       "parameters": {
-        "jsCode": "const lg        = $('LangGraph Analyze').first().json;\nconst buildBody = $('Build LangGraph Body').first().json;\nconst jobId     = $('Insert row').first().json.job_id;\n\nconst analysis  = lg.analysis  || {};\nconst imageUrls = buildBody._image_urls || '[]';\n\n// Text fed to guardrails output check — fields most likely to carry false claims.\nconst guardrailsText = [\n  analysis.market_context,\n  analysis.pricing_opinion,\n  analysis.recommendation,\n].filter(Boolean).join('\\n\\n');\n\nreturn [{ json: {\n  job_id:          jobId,\n  lg_status:       lg.status,\n  intent:          lg.intent,\n  confidence:      lg.confidence || 0,\n  team:            lg.team       || 'unknown',\n  deal_score:      lg.deal_score || 0,\n  estimated_price: lg.estimated_price || null,\n  image_analysis:  JSON.stringify(lg.image_analysis || []),\n  image_urls:      imageUrls,\n  analysis:        JSON.stringify(analysis),\n  guardrails_text: guardrailsText,\n} }];"
+        "jsCode": "const lg        = $('LangGraph Analyze').first().json;\nconst buildBody = $('Build LangGraph Body').first().json;\nconst jobId     = $('Insert row').first().json.job_id;\n\nconst analysis  = lg.analysis  || {};\nconst imageUrls = buildBody._image_urls || '[]';\n\n// Text fed to guardrails output check \u2014 fields most likely to carry false claims.\nconst guardrailsText = [\n  analysis.market_context,\n  analysis.pricing_opinion,\n  analysis.recommendation,\n].filter(Boolean).join('\\n\\n');\n\nreturn [{ json: {\n  job_id:          jobId,\n  lg_status:       lg.status,\n  intent:          lg.intent,\n  confidence:      lg.confidence || 0,\n  team:            lg.team       || 'unknown',\n  deal_score:      lg.deal_score || 0,\n  estimated_price: lg.estimated_price || null,\n  image_analysis:  JSON.stringify(lg.image_analysis || []),\n  image_urls:      imageUrls,\n  analysis:        JSON.stringify(analysis),\n  guardrails_text: guardrailsText,\n} }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [8752, 7408],
+      "position": [
+        8752,
+        7408
+      ],
       "id": "a9e79c27-f90a-4f7c-ae33-cc416f036fe8",
       "name": "Route Response"
     },
@@ -1025,7 +1071,10 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [8976, 7408],
+      "position": [
+        8976,
+        7408
+      ],
       "id": "fbd646b8-f064-4887-8cf3-b4ed51f84ddc",
       "name": "Guardrails Output Check",
       "onError": "continueErrorOutput"
@@ -1058,7 +1107,9 @@
             "analysis": "={{ $('Route Response').first().json.analysis }}",
             "completed_at": "={{ $now.toISO() }}"
           },
-          "matchingColumns": ["job_id"],
+          "matchingColumns": [
+            "job_id"
+          ],
           "schema": [
             {
               "id": "job_id",
@@ -1268,7 +1319,10 @@
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [9200, 7360],
+      "position": [
+        9200,
+        7360
+      ],
       "id": "4763d22a-5633-430e-addf-294cd7223ab0",
       "name": "Update row(s)",
       "credentials": {
@@ -1282,7 +1336,10 @@
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
-      "position": [9424, 7360],
+      "position": [
+        9424,
+        7360
+      ],
       "id": "4eaf0899-56c6-4ffb-8400-f52585b3a625",
       "name": "No Operation, do nothing"
     },
@@ -1304,10 +1361,12 @@
           "value": {
             "job_id": "={{ $('Insert row').first().json.job_id }}",
             "status": "rejected",
-            "analysis": "={{ JSON.stringify({ error: '❌ Processing error: ' + ($input.first().json.error?.message || $input.first().json.message || 'Service unavailable — please resubmit') }) }}",
+            "analysis": "={{ JSON.stringify({ error: '\u274c Processing error: ' + ($input.first().json.error?.message || $input.first().json.message || 'Service unavailable \u2014 please resubmit') }) }}",
             "completed_at": "={{ $now.toISO() }}"
           },
-          "matchingColumns": ["job_id"],
+          "matchingColumns": [
+            "job_id"
+          ],
           "schema": [
             {
               "id": "job_id",
@@ -1517,7 +1576,10 @@
       },
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [9200, 7584],
+      "position": [
+        9200,
+        7584
+      ],
       "id": "617c6e72-f84e-4c30-8187-6fffdd29d8eb",
       "name": "Update row (processing error)",
       "credentials": {
@@ -1529,16 +1591,57 @@
     },
     {
       "parameters": {
-        "text": "={{ $json.image_analysis[0].room_type }}",
-        "guardrails": {},
-        "customizeSystemMessage": true,
-        "systemMessage": "Return pass=true if ALL labels describe real estate or property-related content:\n  - Interior spaces: bedroom, living room, kitchen, bathroom, dining room, hallway, corridor, staircase\n  - Exterior spaces: building exterior, garden, yard, balcony, terrace, parking, garage, driveway\n  - Commercial spaces: office, workspace, meeting room, retail space\n\nReturn pass=false if ANY label describes content unrelated to property:\n  - Animals (cat, dog, bird, any pet or wildlife)\n  - People or portraits\n  - Food or beverages\n  - Vehicles (car, motorcycle, truck)\n  - Natural landscapes without buildings\n  - Documents, screens or phones\n  - Random or unidentifiable objects"
+        "method": "POST",
+        "url": "http://ec2-18-205-20-157.compute-1.amazonaws.com:9001/check/image-label",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $('Parse Image JSON').first().json.image_analysis.map(i => i.room_type).join(', ') }) }}",
+        "options": {
+          "timeout": 30000
+        }
       },
-      "type": "@n8n/n8n-nodes-langchain.guardrails",
-      "typeVersion": 2,
-      "position": [7840, 7312],
-      "id": "a386106e-8c32-4564-8500-1c7f247468e9",
-      "name": "room-images-guardrails"
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7840,
+        7312
+      ],
+      "id": "c1a2b3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Image Label Guardrail",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "image-label-pass",
+              "leftValue": "={{ $json.pass }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        8064,
+        7312
+      ],
+      "id": "d2e3f4a5-b6c7-8901-bcde-f23456789012",
+      "name": "Image Label Valid?"
     }
   ],
   "pinData": {},
@@ -1643,7 +1746,7 @@
       "main": [
         [
           {
-            "node": "room-images-guardrails",
+            "node": "Image Label Guardrail",
             "type": "main",
             "index": 0
           }
@@ -1719,7 +1822,18 @@
         ]
       ]
     },
-    "room-images-guardrails": {
+    "Image Label Guardrail": {
+      "main": [
+        [
+          {
+            "node": "Image Label Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image Label Valid?": {
       "main": [
         [
           {
