@@ -650,7 +650,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:9002/analyse",
+        "url": "http://ec2-13-217-118-0.compute-1.amazonaws.com:9002/analyse",
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
