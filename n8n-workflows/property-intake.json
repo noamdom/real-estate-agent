@@ -987,7 +987,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://host.docker.internal:9000/analyze",
+        "url": "http://ec2-18-232-166-72.compute-1.amazonaws.com:9000/analyze",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ property_type: $json.property_type, location: $json.location, description: $json.description, agent_name: $json.agent_name, price_asking: $json.price_asking, size_sqm: $json.size_sqm, num_rooms: $json.num_rooms, condition: $json.condition, intent: $json.intent, image_analysis: $json.image_analysis }) }}",
