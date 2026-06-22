@@ -43,6 +43,7 @@ End-to-end AI pipeline that automates real estate listing intake and analysis fo
 | **APIs** | FastAPI — all three EC2 microservices |
 | **Storage** | Google Sheets (job tracking), AWS S3 `fp-property-images` (image store) |
 | **Infra** | AWS EC2 (3 services), Docker (n8n), macOS local (Gradio + Ollama) |
+| **Observability** | LangSmith — traces every LangGraph node run (LLM calls, inputs, outputs, latency) |
 
 ---
 
@@ -118,6 +119,18 @@ bash tests/e2e/run_tests.sh --group=n8n
 | `langgraph` | Sell · rent · with image_analysis · no price_asking |
 | `image-analyzer` | CLIP classification across 5 room types (Bathroom/Bedroom/Kitchen/Dining/Living) |
 | `n8n` | Full webhook — sell · rent · sell+image · spam rejected |
+
+The `image-analyzer` and `n8n` groups expect the dataset at `assets/House_Room_Dataset/`.
+Download from Kaggle: https://www.kaggle.com/datasets/robinreni/house-rooms-image-dataset
+Extract so the structure is:
+```
+assets/House_Room_Dataset/
+  Bathroom/
+  Bedroom/
+  Dinning/
+  Kitchen/
+  Livingroom/
+```
 
 ---
 
